@@ -7,6 +7,9 @@ from .interface import UI
 
 def register_commands(builder: SimpleCommandBuilder, manager: TodoManager, server: PluginServerInterface):
     @builder.command("!!todo")
+    def welcome_cmd(source: CommandSource, _context: CommandContext):
+        source.reply(UI.render_welcome())
+
     @builder.command("!!todo help")
     def help_cmd(source: CommandSource, _context: CommandContext):
         source.reply(UI.render_help())
