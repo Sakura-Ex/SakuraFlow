@@ -3,9 +3,10 @@ from mcdreforged.api.all import *
 from . import TodoManager
 from .constants import *
 from .interface import UI
+from .utils import Utils
 
 
-def register_commands(builder: SimpleCommandBuilder, manager: TodoManager, server: PluginServerInterface):
+def register_commands(builder: SimpleCommandBuilder, manager: TodoManager):
     @builder.command("!!todo")
     def welcome_cmd(source: CommandSource, _context: CommandContext):
         source.reply(UI.render_welcome())
@@ -17,7 +18,7 @@ def register_commands(builder: SimpleCommandBuilder, manager: TodoManager, serve
     @builder.command("!!todo list")
     @builder.command("!!todo l")
     def list_tasks(source: CommandSource, _context: CommandContext):
-        source.reply(RText("======= [ GregTech Todo List ] =======", color=RColor.gold))
+        source.reply(RText("======= [ 任务列表 ] =======", color=RColor.gold))
         tasks_found = False
         for tid, task in manager.data["tasks"].items():
             if task["status"] != STATUS_DONE:
@@ -29,7 +30,7 @@ def register_commands(builder: SimpleCommandBuilder, manager: TodoManager, serve
     @builder.command("!!todo archive")
     @builder.command("!!todo ar")
     def list_archive(source: CommandSource, _context: CommandContext):
-        source.reply(RText("======= [ GT 已归档任务 ] =======", color=RColor.gold))
+        source.reply(RText("======= [ 已归档任务 ] =======", color=RColor.gold))
         tasks_found = False
         for tid, task in manager.data["tasks"].items():
             if task["status"] == STATUS_DONE:
@@ -106,40 +107,22 @@ def register_commands(builder: SimpleCommandBuilder, manager: TodoManager, serve
         rval = RText(val)
 
         if real_prop == "tier":
-            tier_map = {t.upper(): t for t in GT_TIERS}
-            if val.isdigit():
-                idx = int(val)
-                if 0 <= idx < len(GT_TIERS):
-                    val = GT_TIERS[idx]
-                else:
-                    source.reply(f"§c[错误] 电压等级数字越界！合法范围: 0-{len(GT_TIERS) - 1}")
-                    return
-            elif val.upper() in tier_map:
-                val = tier_map[val.upper()]
+            validated_tier = Utils.validate_tier(val)
+            if validated_tier:
+                val = validated_tier
+                rval = Utils.get_tier_text(val)
             else:
-                source.reply(f"§c[错误] 无效的电压名称！可选: {', '.join(GT_TIERS)}")
+                source.reply(f"§c[错误] 无效的电压等级！请输入 0-{len(GT_TIERS) - 1} 或名称: {', '.join(GT_TIERS)}")
                 return
-            rval = RText(val, color=UI.get_tier_color(val))
 
         elif real_prop == "priority":
-            prio_map = {p.upper(): p for p in PRIORITIES}
-            no_space_map = {p.replace(' ', '').upper(): p for p in PRIORITIES}
-
-            if val.isdigit():
-                idx = int(val)
-                if 0 <= idx < len(PRIORITIES):
-                    val = PRIORITIES[idx]
-                else:
-                    source.reply(f"§c[错误] 优先级数字越界！合法范围: 0-4 (0=Very High, 4=Very Low)")
-                    return
-            elif val.upper() in prio_map:
-                val = prio_map[val.upper()]
-            elif val.upper() in no_space_map:
-                val = no_space_map[val.upper()]
+            validated_prio = Utils.validate_priority(val)
+            if validated_prio:
+                val = validated_prio
+                rval = Utils.get_priority_text(val)
             else:
                 source.reply(f"§c[错误] 无效优先级！请输入 0-4 或名称: {', '.join(PRIORITIES)}")
                 return
-            rval = RText(val, color=UI.get_priority_color(val))
 
         editor = source.player if source.is_player else "Console"
         if manager.update_task(str(context['id']), real_prop, val, editor):
@@ -177,3 +160,14 @@ def register_commands(builder: SimpleCommandBuilder, manager: TodoManager, serve
         editor = source.player if source.is_player else "Console"
         if manager.update_task(str(context['id']), "status", STATUS_IN_PROGRESS, editor):
             source.reply(f"§a任务 #{context['id']} 已恢复运行 ▶")
+
+    @builder.command("!!todo default_tier <tier>")
+    def set_default_tier(source: CommandSource, context: CommandContext):
+        val = context['tier']
+        validated_tier = Utils.validate_tier(val)
+        
+        if validated_tier:
+            manager.set_default_tier(validated_tier)
+            source.reply(RTextList("§a默认电压等级已设置为: ", Utils.get_tier_text(validated_tier)))
+        else:
+            source.reply(f"§c[错误] 无效的电压等级！请输入 0-{len(GT_TIERS) - 1} 或名称: {', '.join(GT_TIERS)}")

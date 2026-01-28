@@ -1,13 +1,13 @@
 import json
 import os
 import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 
 class TodoManager:
     def __init__(self, data_path: str):
         self.data_path = data_path
-        self.data: Dict[str, Any] = {"tasks": {}, "next_id": 1}
+        self.data: Dict[str, Any] = {"tasks": {}, "next_id": 1, "default_tier": "LV"}
         self.load()
 
     def load(self):
@@ -15,8 +15,11 @@ class TodoManager:
             try:
                 with open(self.data_path, 'r', encoding='utf-8') as f:
                     self.data = json.load(f)
+                    # 确保 default_tier 存在
+                    if "default_tier" not in self.data:
+                        self.data["default_tier"] = "LV"
             except (json.JSONDecodeError, IOError):
-                self.data = {"tasks": {}, "next_id": 1}
+                self.data = {"tasks": {}, "next_id": 1, "default_tier": "LV"}
 
     def save(self):
         os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
@@ -26,6 +29,10 @@ class TodoManager:
         except IOError:
             pass
 
+    def set_default_tier(self, tier: str):
+        self.data["default_tier"] = tier
+        self.save()
+
     def add_task(self, title: str, creator: str) -> str:
         task_id = str(self.data["next_id"])
         self.data["tasks"][task_id] = {
@@ -33,7 +40,7 @@ class TodoManager:
             "creator": creator,
             "description": "暂无描述",
             "status": "In Progress",
-            "tier": "LV",
+            "tier": self.data.get("default_tier", "LV"),
             "priority": "Medium",
             "labels": [],
             "collaborators": [],

@@ -15,7 +15,7 @@ def on_load(server: PluginServerInterface, _prev):
     manager = TodoManager(data_path)
 
     # 注册指令帮助条目
-    server.register_help_message("!!todo", "格雷科技任务管理")
+    server.register_help_message("!!todo", "任务管理")
 
     # 构建指令系统
     builder = SimpleCommandBuilder()
@@ -27,9 +27,10 @@ def on_load(server: PluginServerInterface, _prev):
     builder.arg("list_prop", Text)
     builder.arg("value", GreedyText)
     builder.arg("content", GreedyText)
+    builder.arg("tier", Text)  # 添加 tier 参数定义
 
     # 注册回调逻辑 (传入 manager 实例)
-    register_commands(builder, manager, server)
+    register_commands(builder, manager)
 
     # 注册到服务器
     builder.register(server)

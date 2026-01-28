@@ -1,23 +1,9 @@
 from mcdreforged.api.all import *
 from .constants import *
+from .utils import Utils
 
 
 class UI:
-    @staticmethod
-    def get_tier_color(tier_name: str) -> RColor:
-        """获取电压等级对应的专属颜色"""
-        return TIER_COLORS.get(tier_name, RColor.white)
-
-    @staticmethod
-    def get_status_color(status: str) -> RColor:
-        """获取状态对应的颜色"""
-        return STATUS_COLORS.get(status, RColor.gold)
-
-    @staticmethod
-    def get_priority_color(priority: str) -> RColor:
-        """获取优先级对应的颜色"""
-        return PRIORITY_COLORS.get(priority, RColor.gray)
-
     @staticmethod
     def create_hover_info(tid: str, task: dict, tasks_db: dict) -> RTextBase:
         """通用的任务悬浮矩阵生成器"""
@@ -35,13 +21,13 @@ class UI:
             RText(f"任务: {task['title']}\n", color=RColor.yellow),
             RText(f"创建者: {task.get('creator', '未知')}\n", color=RColor.white),
             RText("等级: ", color=RColor.white),
-            RText(f"{tier}\n", color=UI.get_tier_color(tier)),
+            Utils.get_tier_text(tier), "\n",
             RText("优先级: ", color=RColor.white),
-            RText(f"{prio}\n", color=UI.get_priority_color(prio)),
-            RText(f"负责人: {', '.join(task.get('collaborators', [])) or '独立工厂'}\n", color=RColor.white),
+            Utils.get_priority_text(prio), "\n",
+            RText(f"负责人: {', '.join(task.get('collaborators', [])) or '未分配'}\n", color=RColor.white),
             RText(f"前置依赖: {' '.join(dep_display) or '无'}\n", color=RColor.gray),
             RText("-" * 25 + "\n"),
-            RText(f"最新进展: {task['notes'][-1]['content'] if task.get('notes') else '等待排产'}",
+            RText(f"最新进展: {task['notes'][-1]['content'] if task.get('notes') else '等待记录'}",
                   styles=RStyle.italic)
         )
 
@@ -52,7 +38,10 @@ class UI:
         hover_info = UI.create_hover_info(tid, task, tasks_db)
 
         status_str = task.get("status", "Unknown")
-        status_color = UI.get_status_color(status_str)
+        status_text = Utils.get_status_text(status_str)
+
+        # 使用 Utils 获取颜色
+        status_color = Utils.get_status_color(status_str)
 
         btns = RTextList()
         if is_done:
@@ -77,13 +66,13 @@ class UI:
 
         return RTextList(
             RText(f"[#{tid}] ", color=RColor.green).c(RAction.suggest_command, f"!!todo info {tid}").h(hover_info),
-            RText(f"[{status_str}] ", color=status_color),
+            RText("[", color=status_color), status_text, RText("] ", color=status_color),
             btns, " ",
             RText(task['title']).c(RAction.suggest_command, f"!!todo info {tid}").h(hover_info)
         )
 
     @staticmethod
-    def _render_info_row(tid: str, label: str, value: RTextBase | str, alias: str, is_list: bool = False,
+    def _render_info_row(tid: str, label: str, value: RTextBase | str, cmd: str, is_list: bool = False,
                          value_color: RColor = RColor.white) -> RTextList:
         """
         [抽象方法] 渲染详情页中的一行交互式属性
@@ -92,8 +81,8 @@ class UI:
         action_type = "append" if is_list else "set"
         hint = "追加" if is_list else "修改"
 
-        cmd = f"!!todo {action_type} {tid} {alias} "
-        hover = f"点击{hint}{label} ({alias})"
+        cmd = f"!!todo {action_type} {tid} {cmd} "
+        hover = f"点击{hint}{label}"
         if is_list:
             hover += "\n使用 !!todo remove 移除项"
 
@@ -102,9 +91,7 @@ class UI:
 
         # 数值部分：处理点击事件冲突
         if isinstance(value, RTextBase):
-            # 如果 value 已经是 RText 对象（如依赖列表），直接使用。
-            # 不在外部包装点击事件，以保留其内部（如具体某个 ID）的点击 info 事件。
-            value_component = value
+            value_component = value.c(RAction.suggest_command, cmd).h(hover)
         else:
             # 如果是普通字符串，则包装点击修改/追加的交互逻辑
             value_component = RText(str(value), color=value_color).h(hover).c(RAction.suggest_command, cmd)
@@ -143,15 +130,17 @@ class UI:
             RText(f"======= [ 任务详情 #{tid} ] =======\n", color=RColor.gold),
 
             UI._render_info_row(tid, "任务标题", task['title'], "title"),
-            RText("创建人员: ", color=RColor.gray), RText(f"{task.get('creator', '未知')}\n", color=RColor.white),
-            UI._render_info_row(tid, "当前状态", task['status'], "s", value_color=UI.get_status_color(task['status'])),
-            UI._render_info_row(tid, "电压等级", task['tier'], "t", value_color=UI.get_tier_color(task['tier'])),
-            UI._render_info_row(tid, "优先级别", task['priority'], "p",
-                                value_color=UI.get_priority_color(task['priority'])),
-            UI._render_info_row(tid, "协作人员", ', '.join(task.get('collaborators', [])) or '未分配', "c",
+            RText("创建者: ", color=RColor.gray), RText(f"{task.get('creator', '未知')}\n", color=RColor.white),
+            UI._render_info_row(tid, "当前状态", Utils.get_status_text(task['status']), "status",
+                                value_color=Utils.get_status_color(task['status'])),
+            UI._render_info_row(tid, "等级", Utils.get_tier_text(task['tier']), "tier",
+                                value_color=Utils.get_tier_color(task['tier'])),
+            UI._render_info_row(tid, "优先级", Utils.get_priority_text(task['priority']), "priority",
+                                value_color=Utils.get_priority_color(task['priority'])),
+            UI._render_info_row(tid, "负责人", ', '.join(task.get('collaborators', [])) or '未分配', "collaborators",
                                 is_list=True),
-            UI._render_info_row(tid, "前置依赖", dep_list, "d", is_list=True),
-            UI._render_info_row(tid, "任务描述", task.get('description', '暂无描述'), "desc"),
+            UI._render_info_row(tid, "前置依赖", dep_list, "dependencies", is_list=True),
+            UI._render_info_row(tid, "任务描述", task.get('description', '暂无描述'), "description"),
 
             RText("-" * 35 + "\n", color=RColor.dark_gray),
             RText("任务进度记录:\n", color=RColor.gold),
@@ -210,7 +199,7 @@ class UI:
         )
 
         return RTextList(
-            RText("======= [ GT TodoList 指令帮助 ] =======\n", color=RColor.gold),
+            RText("======= [ TodoList 指令帮助 ] =======\n", color=RColor.gold),
             RText("提示：点击蓝色指令可填充聊天栏；鼠标移至指令上方查看详情\n", color=RColor.gray, styles=RStyle.italic),
 
             help_line("list", "查看进行中任务清单", usage="", abbr="l"),
@@ -238,7 +227,6 @@ class UI:
             RText("======= [ TodoList ] =======\n", color=RColor.gold),
             RText("欢迎使用待办事项管理插件。\n", color=RColor.white),
             RText("本插件能够协助管理复杂的流程，支持任务追踪、等级标记及协作管理。\n", color=RColor.gray),
-            # RText("请选择操作：\n", color=RColor.gray),
             RText("[查看帮助]", color=RColor.aqua).c(RAction.suggest_command, "!!todo help").h("点击查看帮助"),
             " ",
             RText("[任务列表]", color=RColor.green).c(RAction.suggest_command, "!!todo list").h("点击查看未完成任务"),
