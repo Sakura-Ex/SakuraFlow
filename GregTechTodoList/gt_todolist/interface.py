@@ -230,3 +230,18 @@ class UI:
 
             RText("=======================================", color=RColor.gold)
         )
+
+    @staticmethod
+    def render_welcome() -> RTextBase:
+        """渲染欢迎界面"""
+        return RTextList(
+            RText("======= [ TodoList ] =======\n", color=RColor.gold),
+            RText("欢迎使用待办事项管理插件。\n", color=RColor.white),
+            RText("本插件能够协助管理复杂的流程，支持任务追踪、等级标记及协作管理。\n", color=RColor.gray),
+            # RText("请选择操作：\n", color=RColor.gray),
+            RText("[查看帮助]", color=RColor.aqua).c(RAction.suggest_command, "!!todo help").h("点击查看帮助"),
+            " ",
+            RText("[任务列表]", color=RColor.green).c(RAction.suggest_command, "!!todo list").h("点击查看未完成任务"),
+            " ",
+            RText("[新建任务]", color=RColor.yellow).c(RAction.suggest_command, "!!todo add ").h("点击填充新建指令")
+        )
