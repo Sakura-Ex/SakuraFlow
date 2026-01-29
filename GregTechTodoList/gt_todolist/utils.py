@@ -1,8 +1,58 @@
 from mcdreforged.api.all import *
 from .constants import *
-from typing import Optional
+from typing import Optional, Any
 
 class Utils:
+    @staticmethod
+    def info_msg(server: ServerInterface, key: str, *args: Any) -> RTextList:
+        """
+        构建 [INFO] 消息
+        :param server: ServerInterface 实例
+        :param key: Translation Key
+        :param args: 格式化参数
+        :return: RTextList
+        """
+        content = server.tr(key, *args)
+        
+        # 如果内容是字符串，包装成 RText 并赋予绿色
+        # 如果是 RTextBase，我们尝试给它设置颜色作为默认颜色
+        if isinstance(content, str):
+            msg_body = RText(content, color=RColor.green)
+        else:
+            msg_body = content.set_color(RColor.green)
+
+        return RTextList(RText("[INFO] ", color=RColor.green), msg_body)
+
+    @staticmethod
+    def error_msg(server: ServerInterface, key: str, *args: Any) -> RTextList:
+        """
+        构建 [ERROR] 消息
+        :param server: ServerInterface 实例
+        :param key: Translation Key
+        :param args: 格式化参数
+        :return: RTextList
+        """
+        content = server.tr(key, *args)
+        if isinstance(content, str):
+            msg_body = RText(content, color=RColor.red)
+        else:
+            msg_body = content.set_color(RColor.red)
+            
+        return RTextList(RText("[ERROR] ", color=RColor.red), msg_body)
+
+    @staticmethod
+    def create_button(text: str, color: RColor, hover: str, action: RAction, value: str) -> RText:
+        """
+        创建一个带方括号的交互式按钮
+        :param text: 按钮显示的文本 (例如 '✔', '▶', '查看帮助')
+        :param color: 按钮文本颜色
+        :param hover: 悬浮提示信息
+        :param action: 点击动作类型
+        :param value: 点击动作的值
+        :return: RText 组件
+        """
+        return RText(f"[{text}]", color=color).h(hover).c(action, value)
+
     @staticmethod
     def get_tier_text(tier: str) -> RText:
         """获取带有颜色的电压等级文本"""

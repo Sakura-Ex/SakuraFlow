@@ -1,11 +1,14 @@
 {
   "id": "gt_todolist",
-  "version": "0.2.2",
+  "version": "0.2.3-preview",
   "name": "GregTech TodoList",
   "description": "专为格雷科技设计的工业级任务管理与进度追踪系统",
   "author": "Sakura-Ex",
   "link": "https://github.com/Sakura-Ex/GT-TodoList",
   "dependencies": {
     "mcdreforged": ">=2.15.7"
-  }
+  },
+  "resources": [
+    "lang"
+  ]
 }

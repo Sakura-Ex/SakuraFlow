@@ -1,20 +1,31 @@
 from mcdreforged.api.all import RColor
 
-# --- 字段别称映射 ---
-PROP_ALIASES = {
-    'title': 'title',
-    'desc': 'description', 'description': 'description',
-    'stat': 'status', 's': 'status', 'status': 'status',
-    'tier': 'tier', 't': 'tier',
-    'prio': 'priority', 'p': 'priority', 'priority': 'priority'
+# --- 属性定义 ---
+# 结构: { 标准属性名: [别名列表] }
+TASK_PROPERTIES = {
+    'title': ['title'],
+    'description': ['desc', 'description'],
+    'status': ['stat', 's', 'status'],
+    'tier': ['tier', 't'],
+    'priority': ['prio', 'p', 'priority']
 }
 
-# --- 列表字段别称映射 (支持 append/remove) ---
-LIST_PROP_ALIASES = {
-    'collab': 'collaborators', 'c': 'collaborators', 'collaborators': 'collaborators', 'collaborator': 'collaborators',
-    'dep': 'dependencies', 'd': 'dependencies', 'dependencies': 'dependencies', 'dependency': 'dependencies',
-    'label': 'labels', 'l': 'labels', 'labels': 'labels'
+LIST_PROPERTIES = {
+    'collaborators': ['collab', 'c', 'collaborators', 'collaborator'],
+    'dependencies': ['dep', 'd', 'dependencies', 'dependency'],
+    'labels': ['label', 'l', 'labels']
 }
+
+# --- 自动生成别称映射 ---
+def _generate_aliases(prop_def: dict) -> dict:
+    aliases = {}
+    for prop, alias_list in prop_def.items():
+        for alias in alias_list:
+            aliases[alias] = prop
+    return aliases
+
+PROP_ALIASES = _generate_aliases(TASK_PROPERTIES)
+LIST_PROP_ALIASES = _generate_aliases(LIST_PROPERTIES)
 
 # --- 格雷科技电压等级映射 ---
 GT_TIERS = [

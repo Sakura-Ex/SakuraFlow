@@ -65,7 +65,7 @@
 
 1. 确保已安装 [MCDReforged](https://github.com/MCDReforged/MCDReforged)。
 2. 将本插件文件夹放入 `plugins` 目录。
-3. 重启服务器或重载插件。
+3. 在 MCDR 中重载插件。
 
 ## 📝 字段说明
 
