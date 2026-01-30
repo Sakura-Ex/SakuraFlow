@@ -1,6 +1,18 @@
-from mcdreforged.api.all import RColor
+from mcdreforged.api.all import RColor, RText
+from .enums import Status, Priority
 
-# --- 属性定义 ---
+
+# --- Helper Functions ---
+def _generate_aliases(prop_def: dict) -> dict:
+    """自动生成别称映射"""
+    aliases = {}
+    for prop, alias_list in prop_def.items():
+        for alias in alias_list:
+            aliases[alias] = prop
+    return aliases
+
+
+# --- Property Definitions ---
 # 结构: { 标准属性名: [别名列表] }
 TASK_PROPERTIES = {
     'title': ['title'],
@@ -16,24 +28,20 @@ LIST_PROPERTIES = {
     'labels': ['label', 'l', 'labels']
 }
 
-# --- 自动生成别称映射 ---
-def _generate_aliases(prop_def: dict) -> dict:
-    aliases = {}
-    for prop, alias_list in prop_def.items():
-        for alias in alias_list:
-            aliases[alias] = prop
-    return aliases
-
 PROP_ALIASES = _generate_aliases(TASK_PROPERTIES)
 LIST_PROP_ALIASES = _generate_aliases(LIST_PROPERTIES)
 
-# --- 格雷科技电压等级映射 ---
+# --- Status Configuration ---
+STATUS_DONE = Status.DONE.value
+STATUS_IN_PROGRESS = Status.IN_PROGRESS.value
+STATUS_ON_HOLD = Status.ON_HOLD.value
+
+# --- Tier Configuration ---
 GT_TIERS = [
-    'ULV', 'LV', 'MV', 'HV', 'EV', 'IV', 'LuV', 'ZPM', 
+    'ULV', 'LV', 'MV', 'HV', 'EV', 'IV', 'LuV', 'ZPM',
     'UV', 'UHV', 'UEV', 'UIV', 'UXV', 'OpV', 'MAX'
 ]
 
-# --- 电压专属颜色映射 ---
 TIER_COLORS = {
     'ULV': RColor.dark_gray,
     'LV': RColor.gray,
@@ -52,25 +60,16 @@ TIER_COLORS = {
     'MAX': RColor.red
 }
 
-PRIORITIES = [
-    'Very High', 'High', 'Medium', 'Low', 'Very Low'
+# --- Priority Configuration ---
+# 保持向后兼容，虽然推荐使用 Priority 枚举
+PRIORITIES = [p.value for p in Priority]
+
+# --- UI Formatting ---
+LIST_ITEM_SEPERATOR = RText(", ", color=RColor.gray)
+COLON = RText(": ", color=RColor.gray)
+ITEMIZE_PREFIX = [
+    RText("• ", color=RColor.gray),
+    RText("- ", color=RColor.gray),
+    RText("* ", color=RColor.gray),
+    RText("· ", color=RColor.gray)
 ]
-
-PRIORITY_COLORS = {
-    'Very High': RColor.dark_red,
-    'High': RColor.red,
-    'Medium': RColor.yellow,
-    'Low': RColor.green,
-    'Very Low': RColor.gray
-}
-
-STATUS_COLORS = {
-    'Done': RColor.green,
-    'In Progress': RColor.aqua,
-    'On Hold': RColor.red
-}
-
-# --- 任务状态标识 ---
-STATUS_DONE = "Done"
-STATUS_IN_PROGRESS = "In Progress"
-STATUS_ON_HOLD = "On Hold"

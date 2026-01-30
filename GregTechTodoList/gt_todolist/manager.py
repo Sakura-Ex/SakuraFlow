@@ -2,6 +2,7 @@ import json
 import os
 import time
 from typing import Dict, Any, List
+from .enums import Status
 
 
 class TodoManager:
@@ -38,8 +39,8 @@ class TodoManager:
         self.data["tasks"][task_id] = {
             "title": title,
             "creator": creator,
-            "description": "暂无描述",
-            "status": "In Progress",
+            "description": "暂无描述", # TODO 移除硬编码
+            "status": Status.IN_PROGRESS.value,
             "tier": self.data.get("default_tier", "LV"),
             "priority": "Medium",
             "labels": [],
