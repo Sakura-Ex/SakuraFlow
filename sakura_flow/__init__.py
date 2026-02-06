@@ -1,38 +1,26 @@
 from mcdreforged.api.all import *
-from mcdreforged.api.command import SimpleCommandBuilder, Text, GreedyText, Integer
 import os
 
 from .manager import TodoManager
-from .commands import register_commands
+from .controller import TodoController
+from .mcdr_entry import register_mcdr_commands
 from .constants import COMMAND_PREFIX
 
 manager = None
-
+controller = None
 
 def on_load(server: PluginServerInterface, _prev):
-    global manager
+    global manager, controller
     # 初始化管理器
-    data_path = os.path.join(server.get_data_folder(), 'tasks.json')
+    # 数据存放到 MCDR 根目录下的 sf_tasks 目录
+    data_path = os.path.join(os.getcwd(), 'sf_tasks', 'tasks.json')
     manager = TodoManager(data_path)
+    
+    # 初始化控制器
+    controller = TodoController(manager)
 
     # 注册指令帮助条目
     server.register_help_message(COMMAND_PREFIX, "任务管理")
 
-    # 构建指令系统
-    builder = SimpleCommandBuilder()
-
-    # 定义参数节点
-    builder.arg("id", Text)
-    builder.arg("title", GreedyText)
-    builder.arg("prop", Text)
-    builder.arg("list_prop", Text)
-    builder.arg("value", GreedyText)
-    builder.arg("content", GreedyText)
-    builder.arg("tier", Text)  # 添加 tier 参数定义
-    builder.arg("page", Integer)  # 添加 page 参数定义
-
-    # 注册回调逻辑 (传入 manager 实例)
-    register_commands(builder, manager)
-
-    # 注册到服务器
-    builder.register(server)
+    # 注册 MCDR 指令
+    register_mcdr_commands(server, controller)
