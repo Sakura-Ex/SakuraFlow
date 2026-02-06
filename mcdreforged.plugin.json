@@ -1,0 +1,14 @@
+{
+  "id": "sakura_flow",
+  "version": "0.2.3-preview2",
+  "name": "Sakura Flow",
+  "description": "一款专注于依赖管理与深度交互的 MCDReforged 待办事项插件。",
+  "author": "Sakura-Ex",
+  "link": "https://github.com/Sakura-Ex/Sakura-Flow",
+  "dependencies": {
+    "mcdreforged": ">=2.15.7"
+  },
+  "resources": [
+    "lang"
+  ]
+}
