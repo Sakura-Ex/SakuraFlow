@@ -1,27 +1,30 @@
 from mcdreforged.api.all import *
+
+from . import TodoManager
 from .constants import *
+from .constants import PAGE_SIZE
 from .enums import Status, Tier, Priority
 from .utils import Utils, ItemizeBuilder
 
 
 class UI:
     @staticmethod
-    def make_header(title: str = "", width: int = 50) -> str:
+    def make_dividing_line(content: str | RTextBase = "", width: int = 50, newline: bool = True) -> RTextBase:
         """生成居中的标题分割线"""
-        if not title:
-            return "=" * width
+        if not str(content):
+            line = RText("=" * width, color=RColor.gold)
+        else:
+            # 格式：======= [ 标题 ] =======
+            # 左右各留一个空格，标题两侧加 [ ]
+            remaining = width - len(str(content)) - 4
+            if remaining < 0:
+                line = RTextList("[ ", content, " ]").set_color(RColor.gold)  # 标题过长则直接返回
+            else:
+                left_pad = remaining // 2
+                right_pad = remaining - left_pad
 
-        # 格式：======= [ 标题 ] =======
-        # 左右各留一个空格，标题两侧加 [ ]
-        inner_text = f" [ {title} ] "
-        remaining = width - len(inner_text)
-        if remaining < 0:
-            return inner_text  # 标题过长则直接返回
-
-        left_pad = remaining // 2
-        right_pad = remaining - left_pad
-
-        return "=" * left_pad + inner_text + "=" * right_pad
+                line = RTextList("=" * left_pad, "[ ", content, " ]", "=" * right_pad).set_color(RColor.gold)
+        return line + ("\n" if newline else "")
 
     @staticmethod
     def create_hover_info(tid: str, task: dict, tasks_db: dict, server: ServerInterface) -> RTextBase:
@@ -58,11 +61,11 @@ class UI:
             RText("-" * 25 + "\n"),
             RText(
                 f"{server.tr('todo.ui.hover.latest_progress')}: {task['notes'][-1]['content'] if task.get('notes') else server.tr('todo.ui.hover.waiting_record')}",
-                styles=RStyle.italic, color=RColor.gray)
+                color=RColor.gray)
         )
 
     @staticmethod
-    def render_task_line(tid: str, task: dict, tasks_db: dict, server: ServerInterface) -> RTextBase:
+    def render_task_line(tid: str, task: dict, tasks_db: dict, server: ServerInterface, source: CommandSource) -> RTextBase:
         """渲染清单行"""
         is_done = task.get("status") == Status.DONE.value
         hover_info = UI.create_hover_info(tid, task, tasks_db, server)
@@ -75,25 +78,27 @@ class UI:
 
         btns = RTextList()
         if is_done:
-            btns.append(" ")
             btns.append(
-                Utils.create_button("↺", RColor.blue, server.tr('todo.action.restore'), f"!!todo restore {tid}"))
+                Utils.create_button("↺", RColor.blue, server.tr('todo.action.restore'), f"{COMMAND_PREFIX} restore {tid}"))
         else:
             is_paused = status_str == Status.ON_HOLD.value
             toggle_btn = Utils.create_button("▶", RColor.green, server.tr('todo.action.resume'),
-                                             f"!!todo resume {tid}") if is_paused else \
-                Utils.create_button("⏸", RColor.yellow, server.tr('todo.action.pause'), f"!!todo pause {tid}")
+                                             f"{COMMAND_PREFIX} resume {tid}") if is_paused else \
+                Utils.create_button("⏸", RColor.yellow, server.tr('todo.action.pause'), f"{COMMAND_PREFIX} pause {tid}")
             complete_btn = Utils.create_button("✔", RColor.green, server.tr('todo.action.complete'),
-                                               f"!!todo complete {tid}")
-            note_btn = Utils.create_button("✎", RColor.aqua, server.tr('todo.action.note'), f"!!todo note {tid} ")
+                                               f"{COMMAND_PREFIX} complete {tid}")
+            note_btn = Utils.create_button("✎", RColor.aqua, server.tr('todo.action.note'), f"{COMMAND_PREFIX} note {tid} ")
 
-            btns.append(" ", toggle_btn, " ", complete_btn, " ", note_btn)
+            btns.append(toggle_btn, " ", complete_btn, " ", note_btn)
+            if source.is_player:
+                claim_btn = Utils.create_button("★", RColor.gold, server.tr('todo.action.claim'), f"{COMMAND_PREFIX} set {tid} collaborators {source.player}")
+                btns.append(claim_btn)
 
         return RTextList(
-            RText(f"[#{tid}] ", color=RColor.green).c(RAction.suggest_command, f"!!todo info {tid}").h(hover_info),
+            RText(f"[#{tid}] ", color=RColor.green).c(RAction.suggest_command, f"{COMMAND_PREFIX} info {tid}").h(hover_info),
             RText("[", color=status_color), status_text, RText("] ", color=status_color).h(hover_info),
-            btns, " ",
-            RText(task['title']).c(RAction.suggest_command, f"!!todo info {tid}").h(hover_info)
+            " ", btns, " ",
+            RText(task['title']).c(RAction.suggest_command, f"{COMMAND_PREFIX} info {tid}").h(hover_info)
         )
 
     @staticmethod
@@ -107,10 +112,10 @@ class UI:
         action_type = "append" if is_list else "set"
         hint = server.tr('todo.action.append') if is_list else server.tr('todo.action.modify')
 
-        cmd_str = f"!!todo {action_type} {tid} {cmd} "
+        cmd_str = f"{COMMAND_PREFIX} {action_type} {tid} {cmd} "
         hover = server.tr('todo.ui.hover.click_to_action', hint, label)
         if is_list:
-            hover += "\n" + server.tr('todo.ui.hover.remove_hint')
+            hover += "\n" + server.tr('todo.ui.hover.remove_hint', COMMAND_PREFIX)
 
         # 标签部分：永远保持点击触发修改指令
         label_component = RText(f"{label}: ", color=LABEL_COLOR).h(hover).c(RAction.suggest_command, cmd_str)
@@ -147,7 +152,7 @@ class UI:
                         RTextList(symbol, RText(f"#{d_id}"))
                         .set_color(color)
                         .h(d_hover)
-                        .c(RAction.suggest_command, f"!!todo info {d_id}")
+                        .c(RAction.suggest_command, f"{COMMAND_PREFIX} info {d_id}")
                     )
                 else:
                     dep_items.append(RText(f"#{d_id}{server.tr('todo.ui.info.invalid_dep')}", color=RColor.red))
@@ -170,8 +175,7 @@ class UI:
         collab_val = Utils.list_to_rtext(collabs) if collabs else server.tr('todo.common.unassigned')
 
         return RTextList(
-            RText(f"{UI.make_header(server.tr('todo.ui.info.header', tid))}\n", color=RColor.gold),
-
+            UI.make_dividing_line(server.tr('todo.ui.info.header', tid)),
             UI._render_info_row(tid, server.tr('todo.common.title'), task['title'], "title", server),
             RText(f"{server.tr('todo.common.creator')}: ", color=RColor.gray),
             RText(f"{task.get('creator', server.tr('todo.common.unknown'))}\n", color=RColor.white),
@@ -191,7 +195,7 @@ class UI:
             RText("-" * 35 + "\n", color=RColor.dark_gray),
             RText(f"{server.tr('todo.ui.info.progress_header')}\n", color=RColor.gold),
             *notes_content,
-            RText(f"{UI.make_header()}\n", color=RColor.gold)
+            UI.make_dividing_line()
         )
 
     @staticmethod
@@ -204,12 +208,12 @@ class UI:
 
             # 用法展示
             hover_content.append(RText(f"{server.tr('todo.common.usage')}: ", color=RColor.gray))
-            hover_content.append(RText(f"!!todo {cmd} {usage}\n", color=RColor.aqua))
+            hover_content.append(RText(f"{COMMAND_PREFIX} {cmd} {usage}\n", color=RColor.aqua))
 
             # 缩写展示
             if abbr:
                 hover_content.append(RText(f"{server.tr('todo.common.alias')}: ", color=RColor.gray))
-                hover_content.append(RText(f"!!todo {abbr}\n", color=RColor.aqua))
+                hover_content.append(RText(f"{COMMAND_PREFIX} {abbr}\n", color=RColor.aqua))
 
                 hover_content.append(RText("-" * 20 + "\n", color=RColor.dark_gray))
 
@@ -220,11 +224,11 @@ class UI:
                 hover_content.append(desc)
 
             return RTextList(
-                RText(f"!!todo {cmd}", color=RColor.aqua)
-                .c(RAction.suggest_command, f"!!todo {cmd} ")
+                RText(f"{COMMAND_PREFIX} {cmd}", color=RColor.aqua)
+                .c(RAction.suggest_command, f"{COMMAND_PREFIX} {cmd} ")
                 .h(hover_content),
-                RText(" : ", color=RColor.gray).c(RAction.suggest_command, f"!!todo {cmd} ").h(hover_content),
-                RText(f"{desc}\n", color=RColor.white).c(RAction.suggest_command, f"!!todo {cmd} ").h(hover_content)
+                RText(" : ", color=RColor.gray).c(RAction.suggest_command, f"{COMMAND_PREFIX} {cmd} ").h(hover_content),
+                RText(f"{desc}\n", color=RColor.white).c(RAction.suggest_command, f"{COMMAND_PREFIX} {cmd} ").h(hover_content)
             )
 
         def build_props_info(header_key: str, props_dict: dict) -> RTextList:
@@ -261,7 +265,7 @@ class UI:
         )
 
         return RTextList(
-            RText(f"{UI.make_header(server.tr('todo.help.header'))}\n", color=RColor.gold),
+            UI.make_dividing_line(server.tr('todo.help.header')),
             RText(f"{server.tr('todo.help.hint')}\n", color=RColor.gray, styles=RStyle.italic),
 
             help_line("list", server.tr('todo.help.list'), usage="", abbr="l"),
@@ -282,24 +286,82 @@ class UI:
             help_line("complete", server.tr('todo.help.complete'), usage="<id>"),
             help_line("restore", server.tr('todo.help.restore'), usage="<id>"),
 
-            RText(f"{UI.make_header()}\n", color=RColor.gold)
+            UI.make_dividing_line()
         )
 
     @staticmethod
     def render_welcome(server: ServerInterface) -> RTextBase:
         """渲染欢迎界面"""
         return RTextList(
-            RText(f"{UI.make_header(server.tr('todo.welcome.header'))}\n", color=RColor.gold),
+            UI.make_dividing_line(server.tr('todo.welcome.header')),
             RText(f"{server.tr('todo.welcome.line1')}\n", color=RColor.white),
             RText(f"{server.tr('todo.welcome.line2')}\n", color=RColor.gray),
             RText(f"{server.tr('todo.welcome.btn_line')}", color=RColor.gray),
             COLON,
             Utils.create_button(server.tr('todo.welcome.btn.help'), RColor.aqua, server.tr('todo.welcome.hover.help'),
-                                "!!todo help"),
+                                f"{COMMAND_PREFIX} help"),
             " ",
             Utils.create_button(server.tr('todo.welcome.btn.list'), RColor.green, server.tr('todo.welcome.hover.list'),
-                                "!!todo list"),
+                                f"{COMMAND_PREFIX} list"),
             " ",
             Utils.create_button(server.tr('todo.welcome.btn.add'), RColor.yellow, server.tr('todo.welcome.hover.add'),
-                                "!!todo add ")
+                                f"{COMMAND_PREFIX} add ")
         )
+
+    @staticmethod
+    def render_paged_list(source: CommandSource, manager: TodoManager, header_key: str, empty_key: str, is_archive: bool, input_page: int = 1):
+        server = source.get_server()
+        page_size = PAGE_SIZE
+
+        filtered_tasks = []
+        for tid, task in manager.data["tasks"].items():
+            is_done = task["status"] == Status.DONE.value
+            if is_archive == is_done:
+                filtered_tasks.append((tid, task))
+
+        total_items = len(filtered_tasks)
+
+        if total_items == 0:
+            source.reply(UI.make_dividing_line(server.tr(header_key), newline=False))
+            source.reply(RText(server.tr(empty_key), color=RColor.gray))
+            return
+
+        total_pages = (total_items + page_size - 1) // page_size
+        # For `input_page`, 1 refers to the first page, -1 refers to the last page, etc.
+        # Specially, 0 refers to the first page.
+
+        # This `page`'s index start from 0
+        if input_page > 0:
+            page = (input_page - 1) % total_pages
+        else:
+            page = input_page % total_pages
+
+        start_index = page * page_size
+        end_index = start_index + page_size
+
+        # 顶部只显示标题，不显示页码
+        source.reply(UI.make_dividing_line(server.tr(header_key), newline=False))
+
+        for tid, task in filtered_tasks[start_index:end_index]:
+            source.reply(UI.render_task_line(tid, task, manager.data["tasks"], server, source))
+
+        # 底部显示页码和翻页按钮
+        footer = RTextList()
+
+        # 上一页按钮
+        if page > 0:
+            prev_cmd = f"{COMMAND_PREFIX} {'archive' if is_archive else 'list'} {page}"
+            footer.append(Utils.create_button("<<", RColor.aqua, server.tr("todo.action.prev_page"), prev_cmd))
+        else:
+            footer.append(RText("[<<]", color=RColor.gray))
+
+        footer.append(f" {page + 1}/{total_pages} ")
+
+        # 下一页按钮
+        if page < total_pages - 1:
+            next_cmd = f"{COMMAND_PREFIX} {'archive' if is_archive else 'list'} {page + 2}"
+            footer.append(Utils.create_button(">>", RColor.aqua, server.tr("todo.action.next_page"), next_cmd))
+        else:
+            footer.append(RText("[>>]", color=RColor.gray))
+
+        source.reply(UI.make_dividing_line(footer, newline=False))

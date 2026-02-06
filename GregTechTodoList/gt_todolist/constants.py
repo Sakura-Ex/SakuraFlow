@@ -1,6 +1,9 @@
 from mcdreforged.api.all import RColor, RText
 from .enums import Status, Priority
 
+COMMAND_PREFIX = "!!todo"
+PAGE_SIZE = 8
+
 
 # --- Helper Functions ---
 def _generate_aliases(prop_def: dict) -> dict:
@@ -30,11 +33,6 @@ LIST_PROPERTIES = {
 
 PROP_ALIASES = _generate_aliases(TASK_PROPERTIES)
 LIST_PROP_ALIASES = _generate_aliases(LIST_PROPERTIES)
-
-# --- Status Configuration ---
-STATUS_DONE = Status.DONE.value
-STATUS_IN_PROGRESS = Status.IN_PROGRESS.value
-STATUS_ON_HOLD = Status.ON_HOLD.value
 
 # --- Tier Configuration ---
 GT_TIERS = [

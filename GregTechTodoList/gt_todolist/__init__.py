@@ -1,9 +1,10 @@
 from mcdreforged.api.all import *
-from mcdreforged.api.command import SimpleCommandBuilder, Text, GreedyText
+from mcdreforged.api.command import SimpleCommandBuilder, Text, GreedyText, Integer
 import os
 
 from .manager import TodoManager
 from .commands import register_commands
+from .constants import COMMAND_PREFIX
 
 manager = None
 
@@ -15,7 +16,7 @@ def on_load(server: PluginServerInterface, _prev):
     manager = TodoManager(data_path)
 
     # 注册指令帮助条目
-    server.register_help_message("!!todo", "任务管理")
+    server.register_help_message(COMMAND_PREFIX, "任务管理")
 
     # 构建指令系统
     builder = SimpleCommandBuilder()
@@ -28,6 +29,7 @@ def on_load(server: PluginServerInterface, _prev):
     builder.arg("value", GreedyText)
     builder.arg("content", GreedyText)
     builder.arg("tier", Text)  # 添加 tier 参数定义
+    builder.arg("page", Integer)  # 添加 page 参数定义
 
     # 注册回调逻辑 (传入 manager 实例)
     register_commands(builder, manager)

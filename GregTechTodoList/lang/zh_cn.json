@@ -29,9 +29,12 @@
   "todo.action.pause": "暂停",
   "todo.action.complete": "完工",
   "todo.action.note": "笔记",
+  "todo.action.claim": "认领",
   "todo.action.append": "追加",
   "todo.action.modify": "修改",
   "todo.action.remove": "移除",
+  "todo.action.prev_page": "上一页",
+  "todo.action.next_page": "下一页",
 
   "todo.status.done": "已完成",
   "todo.status.in_progress": "进行中",
@@ -46,7 +49,7 @@
   "todo.ui.hover.latest_progress": "最新进展",
   "todo.ui.hover.waiting_record": "等待记录",
   "todo.ui.hover.click_to_action": "点击{0}{1}",
-  "todo.ui.hover.remove_hint": "使用 !!todo remove 移除项",
+  "todo.ui.hover.remove_hint": "使用 {0} remove 移除项",
 
   "todo.ui.info.header": "任务详情 #{0}",
   "todo.ui.info.no_desc": "暂无描述",
