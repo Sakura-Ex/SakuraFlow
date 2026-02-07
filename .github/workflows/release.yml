@@ -2,7 +2,21 @@ name: CI for MCDR Plugin
 
 on:
   push:
+    branches:
+      - main
+      - dev
+    tags:
+      - 'v*'
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
   pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
 
 permissions:
   contents: write
