@@ -1,9 +1,10 @@
 import argparse
 import os
-import sys
-from sakura_flow.manager import TodoManager
-from sakura_flow.controller import TodoController
+
 from sakura_flow.cli_entry import register_cli_commands, handle_cli_command
+from sakura_flow.controller import TodoController
+from sakura_flow.manager import TodoManager
+
 
 def main():
     parser = argparse.ArgumentParser(description="Sakura Flow CLI")

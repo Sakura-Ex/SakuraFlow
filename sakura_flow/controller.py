@@ -1,8 +1,10 @@
-from typing import Optional, List, Dict, Any
 import time
-from .manager import TodoManager
+from typing import Optional, Dict, Any
+
+from .constants import PROP_ALIASES, LIST_PROP_ALIASES
 from .enums import Status, Tier, Priority
-from .constants import PROP_ALIASES, LIST_PROP_ALIASES, GT_TIERS
+from .manager import TodoManager
+
 
 class SearchCache:
     def __init__(self, ttl: int = 300):
