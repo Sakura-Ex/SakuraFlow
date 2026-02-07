@@ -8,7 +8,10 @@
   "dependencies": {
     "mcdreforged": ">=2.15.0"
   },
+  "archive_name": "SakuraFlow-{version}.pyz",
   "resources": [
-    "lang"
+    "lang",
+    "__main__.py",
+    "LICENSE"
   ]
 }

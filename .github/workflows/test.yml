@@ -91,7 +91,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SakuraFlow-Build
-          path: package/*.mcdr
+          path: package/*.pyz
           retention-days: 5
 
   # 3. 发布任务 (构建成功后，如果是 Tag 推送或 Main 分支版本更新时运行)
@@ -129,5 +129,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.VERSION) }}
-          files: package/*.mcdr
+          name: Sakura Flow ${{ env.VERSION }}
+          files: package/*.pyz
           generate_release_notes: true
