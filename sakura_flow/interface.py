@@ -174,6 +174,10 @@ class UI:
         collabs = task.get('collaborators', [])
         collab_val = Utils.list_to_rtext(collabs) if collabs else server.tr('todo.common.unassigned')
 
+        description = task.get('description', '')
+        if not description:
+            description = server.tr('todo.ui.info.no_desc')
+
         return RTextList(
             UI.make_dividing_line(server.tr('todo.ui.info.header', tid)),
             UI._render_info_row(tid, server.tr('todo.common.title'), task['title'], "title", server),
@@ -190,12 +194,12 @@ class UI:
             UI._render_info_row(tid, server.tr('todo.common.dependencies'), dep_list, "dependency", server,
                                 is_list=True),
             UI._render_info_row(tid, server.tr('todo.common.description'),
-                                task.get('description', server.tr('todo.ui.info.no_desc')), "description", server),
+                                description, "description", server),
 
             RText("-" * 35 + "\n", color=RColor.dark_gray),
             RText(f"{server.tr('todo.ui.info.progress_header')}\n", color=RColor.gold),
             *notes_content,
-            UI.make_dividing_line()
+            UI.make_dividing_line(newline=False)
         )
 
     @staticmethod
@@ -270,6 +274,7 @@ class UI:
 
             help_line("list", server.tr('todo.help.list'), usage="", abbr="l"),
             help_line("archive", server.tr('todo.help.archive'), usage="", abbr="ar"),
+            help_line("search", server.tr('todo.help.search'), usage="<query>", abbr="find"),
             help_line("add", server.tr('todo.help.add'), usage="<title>", abbr="a"),
             help_line("info", server.tr('todo.help.info'), usage="<id>", abbr="i"),
             help_line("note", server.tr('todo.help.note'), usage="<id> <content>", abbr="n"),
@@ -286,7 +291,7 @@ class UI:
             help_line("complete", server.tr('todo.help.complete'), usage="<id>"),
             help_line("restore", server.tr('todo.help.restore'), usage="<id>"),
 
-            UI.make_dividing_line()
+            UI.make_dividing_line(newline=False)
         )
 
     @staticmethod
@@ -309,15 +314,21 @@ class UI:
         )
 
     @staticmethod
-    def render_paged_list(source: CommandSource, manager: TodoManager, header_key: str, empty_key: str, is_archive: bool, input_page: int = 1):
+    def render_paged_list(source: CommandSource, tasks: dict, manager: TodoManager, header_key: str, empty_key: str, 
+                          input_page: int = 1, cmd_prefix: str = "list"):
+        """
+        渲染分页列表
+        :param tasks: 要渲染的任务字典 {tid: task_data}
+        :param manager: TodoManager 实例，用于查找依赖任务信息
+        :param cmd_prefix: 翻页命令的前缀，例如 "search"
+        """
         server = source.get_server()
         page_size = PAGE_SIZE
 
+        # 将字典转换为列表以便切片
         filtered_tasks = []
-        for tid, task in manager.data["tasks"].items():
-            is_done = task["status"] == Status.DONE.value
-            if is_archive == is_done:
-                filtered_tasks.append((tid, task))
+        for tid, task in tasks.items():
+            filtered_tasks.append((tid, task))
 
         total_items = len(filtered_tasks)
 
@@ -327,10 +338,7 @@ class UI:
             return
 
         total_pages = (total_items + page_size - 1) // page_size
-        # For `input_page`, 1 refers to the first page, -1 refers to the last page, etc.
-        # Specially, 0 refers to the first page.
-
-        # This `page`'s index start from 0
+        
         if input_page > 0:
             page = (input_page - 1) % total_pages
         else:
@@ -350,7 +358,7 @@ class UI:
 
         # 上一页按钮
         if page > 0:
-            prev_cmd = f"{COMMAND_PREFIX} {'archive' if is_archive else 'list'} {page}"
+            prev_cmd = f"{COMMAND_PREFIX} {cmd_prefix} {page}"
             footer.append(Utils.create_button("<<", RColor.aqua, server.tr("todo.action.prev_page"), prev_cmd))
         else:
             footer.append(RText("[<<]", color=RColor.gray))
@@ -359,7 +367,7 @@ class UI:
 
         # 下一页按钮
         if page < total_pages - 1:
-            next_cmd = f"{COMMAND_PREFIX} {'archive' if is_archive else 'list'} {page + 2}"
+            next_cmd = f"{COMMAND_PREFIX} {cmd_prefix} {page + 2}"
             footer.append(Utils.create_button(">>", RColor.aqua, server.tr("todo.action.next_page"), next_cmd))
         else:
             footer.append(RText("[>>]", color=RColor.gray))
