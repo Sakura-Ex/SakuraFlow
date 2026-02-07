@@ -1,5 +1,6 @@
 from mcdreforged.api.all import RColor, RText
-from .enums import Status, Priority
+
+from .enums import Priority
 
 COMMAND_PREFIX = "!!todo"
 PAGE_SIZE = 8
