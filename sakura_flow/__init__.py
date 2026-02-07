@@ -1,4 +1,4 @@
-from mcdreforged.api.all import *
+from mcdreforged.api.all import PluginServerInterface
 import os
 
 from .manager import TodoManager

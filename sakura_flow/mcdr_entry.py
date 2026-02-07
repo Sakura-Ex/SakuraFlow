@@ -1,5 +1,5 @@
-from mcdreforged.api.all import *
-from mcdreforged.api.command import *
+from mcdreforged.api.all import PluginServerInterface, CommandSource, CommandContext, RText, RColor, RStyle
+from mcdreforged.api.command import Literal, Integer, GreedyText, Text
 
 from .controller import TodoController
 from .interface import UI
@@ -20,14 +20,14 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
         page = context.get("page", 1)
         # 使用 search_tasks 获取非 Done 任务
         tasks = controller.search_tasks({'status': '!Done'})
-        UI.render_paged_list(source, tasks, controller.manager, 'todo.list.header', 'todo.list.empty', 
+        UI.render_paged_list(source, tasks, controller.manager, 'sakuraflow.list.header', 'sakuraflow.list.empty', 
                              input_page=page, cmd_prefix="list")
 
     def on_archive(source: CommandSource, context: CommandContext):
         page = context.get("page", 1)
         # 使用 search_tasks 获取 Done 任务
         tasks = controller.search_tasks({'status': 'Done'})
-        UI.render_paged_list(source, tasks, controller.manager, 'todo.archive.header', 'todo.archive.empty', 
+        UI.render_paged_list(source, tasks, controller.manager, 'sakuraflow.archive.header', 'sakuraflow.archive.empty', 
                              input_page=page, cmd_prefix="archive")
 
     def on_search(source: CommandSource, context: CommandContext):
@@ -48,7 +48,7 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
             results = controller.get_cached_search(player_key)
             if results is None:
                 # 缓存过期或不存在，提示用户重新搜索
-                source.reply(Utils.error_msg(server, 'todo.search.cache_expired'))
+                source.reply(Utils.error_msg(server, 'sakuraflow.search.cache_expired'))
                 return
         else:
             # 执行新搜索
@@ -82,7 +82,7 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
             page = 1 # 新搜索重置为第一页
 
         # 渲染搜索结果
-        UI.render_paged_list(source, results, controller.manager, 'todo.search.header', 'todo.search.empty', 
+        UI.render_paged_list(source, results, controller.manager, 'sakuraflow.search.header', 'sakuraflow.search.empty', 
                              input_page=page, cmd_prefix="search")
 
 
@@ -90,13 +90,13 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
         creator = source.player if source.is_player else "Console"
         tid = controller.add_task(context['title'], creator)
         tid_text = RText(f"#{tid}", color=RColor.green, styles=RStyle.bold)
-        source.reply(Utils.info_msg(server, 'todo.msg.add_success', tid_text))
+        source.reply(Utils.info_msg(server, 'sakuraflow.msg.add_success', tid_text))
 
     def on_info(source: CommandSource, context: CommandContext):
         tid = str(context['id'])
         task = controller.get_task(tid)
         if not task:
-            source.reply(Utils.error_msg(server, 'todo.msg.not_found'))
+            source.reply(Utils.error_msg(server, 'sakuraflow.msg.not_found'))
             return
         source.reply(UI.render_task_info(tid, task, controller.manager.data["tasks"], server))
 
@@ -105,17 +105,17 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
         success, val, err = controller.set_property(str(context['id']), context['prop'], context['value'], editor)
         
         if not success:
-            if err == 'todo.msg.invalid_tier':
+            if err == 'sakuraflow.msg.invalid_tier':
                 tier_list = Utils.list_to_rtext([Tier.get_rtext(t.value) for t in Tier])
                 source.reply(Utils.error_msg(server, err, len(GT_TIERS) - 1, tier_list))
-            elif err == 'todo.msg.invalid_priority':
+            elif err == 'sakuraflow.msg.invalid_priority':
                 prio_list = Utils.list_to_rtext([Priority.get_rtext(p.value) for p in Priority])
                 source.reply(Utils.error_msg(server, err, prio_list))
-            elif err == 'todo.msg.invalid_status':
+            elif err == 'sakuraflow.msg.invalid_status':
                 status_list = Utils.list_to_rtext([Status.get_rtext(s.value) for s in Status])
                 source.reply(Utils.error_msg(server, err, status_list))
             else:
-                source.reply(Utils.error_msg(server, err or 'todo.msg.unknown_error', context.get('prop')))
+                source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context.get('prop')))
             return
 
         # 成功后的 UI 反馈
@@ -128,35 +128,35 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
         elif Priority.validate(val): rval = Priority.get_rtext(val, server)
         elif Status.validate(val): rval = Status.get_rtext(val, server)
         
-        source.reply(Utils.info_msg(server, 'todo.msg.set_success', context['id'], context['prop'], rval))
+        source.reply(Utils.info_msg(server, 'sakuraflow.msg.set_success', context['id'], context['prop'], rval))
 
     def on_append(source: CommandSource, context: CommandContext):
         editor = source.player if source.is_player else "Console"
         success, err = controller.append_list_property(str(context['id']), context['list_prop'], str(context['value']), editor)
         
         if not success:
-            if err == 'todo.msg.dep_not_found':
+            if err == 'sakuraflow.msg.dep_not_found':
                 source.reply(Utils.error_msg(server, err, context['value']))
             else:
-                source.reply(Utils.error_msg(server, err or 'todo.msg.unknown_error', context['list_prop']))
+                source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context['list_prop']))
             return
             
-        source.reply(Utils.info_msg(server, 'todo.msg.append_success', context['id'], context['list_prop'], context['value']))
+        source.reply(Utils.info_msg(server, 'sakuraflow.msg.append_success', context['id'], context['list_prop'], context['value']))
 
     def on_remove(source: CommandSource, context: CommandContext):
         editor = source.player if source.is_player else "Console"
         success, err = controller.remove_list_property(str(context['id']), context['list_prop'], str(context['value']), editor)
         
         if not success:
-             source.reply(Utils.error_msg(server, 'todo.msg.remove_failed', context['value']))
+             source.reply(Utils.error_msg(server, 'sakuraflow.msg.remove_failed', context['value']))
              return
              
-        source.reply(Utils.info_msg(server, 'todo.msg.remove_success', context['id'], context['list_prop'], context['value']))
+        source.reply(Utils.info_msg(server, 'sakuraflow.msg.remove_success', context['id'], context['list_prop'], context['value']))
 
     def on_note(source: CommandSource, context: CommandContext):
         author = source.player if source.is_player else "Console"
         if controller.add_note(str(context['id']), context['content'], author):
-            source.reply(Utils.info_msg(server, 'todo.msg.note_success', context['id']))
+            source.reply(Utils.info_msg(server, 'sakuraflow.msg.note_success', context['id']))
 
     def on_status_change(source: CommandSource, context: CommandContext, status: Status, msg_key: str):
         editor = source.player if source.is_player else "Console"
@@ -165,10 +165,10 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
 
     def on_default_tier(source: CommandSource, context: CommandContext):
         if controller.set_default_tier(context['tier']):
-             source.reply(Utils.info_msg(server, 'todo.msg.default_tier_success', context['tier']))
+             source.reply(Utils.info_msg(server, 'sakuraflow.msg.default_tier_success', context['tier']))
         else:
              tier_list = Utils.list_to_rtext([Tier.get_rtext(t.value) for t in Tier])
-             source.reply(Utils.error_msg(server, 'todo.msg.invalid_tier', len(GT_TIERS) - 1, tier_list))
+             source.reply(Utils.error_msg(server, 'sakuraflow.msg.invalid_tier', len(GT_TIERS) - 1, tier_list))
 
 
     # --- Command Tree Definition ---
@@ -211,10 +211,10 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
     node_note = Literal('note').then(Text('id').then(GreedyText('content').runs(on_note)))
     node_note_alias = Literal('n').then(Text('id').then(GreedyText('content').runs(on_note)))
 
-    node_complete = Literal('complete').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.DONE, 'todo.msg.complete_success')))
-    node_pause = Literal('pause').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.ON_HOLD, 'todo.msg.pause_success')))
-    node_resume = Literal('resume').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.IN_PROGRESS, 'todo.msg.resume_success')))
-    node_restore = Literal('restore').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.IN_PROGRESS, 'todo.msg.restore_success')))
+    node_complete = Literal('complete').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.DONE, 'sakuraflow.msg.complete_success')))
+    node_pause = Literal('pause').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.ON_HOLD, 'sakuraflow.msg.pause_success')))
+    node_resume = Literal('resume').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.IN_PROGRESS, 'sakuraflow.msg.resume_success')))
+    node_restore = Literal('restore').then(Text('id').runs(lambda s, c: on_status_change(s, c, Status.IN_PROGRESS, 'sakuraflow.msg.restore_success')))
 
     node_default_tier = Literal('default_tier').then(Text('tier').runs(on_default_tier))
 

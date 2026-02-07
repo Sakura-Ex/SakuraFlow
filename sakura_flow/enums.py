@@ -83,19 +83,19 @@ class BaseProperty(Enum):
 
 
 class Status(BaseProperty):
-    DONE = ("Done", RColor.green, ['done', 'd', 'finished', 'finish', 'complete', 'completed'], "todo.status.done")
+    DONE = ("Done", RColor.green, ['done', 'd', 'finished', 'finish', 'complete', 'completed'], "sakuraflow.status.done")
     IN_PROGRESS = ("In Progress", RColor.aqua, ['in progress', 'inprogress', 'ip', 'progress', 'p', 'doing'],
-                   "todo.status.in_progress")
+                   "sakuraflow.status.in_progress")
     ON_HOLD = ("On Hold", RColor.red, ['on hold', 'onhold', 'hold', 'oh', 'h', 'pause', 'paused', 'waiting'],
-               "todo.status.on_hold")
+               "sakuraflow.status.on_hold")
 
 
 class Priority(BaseProperty):
-    VERY_HIGH = ("Very High", RColor.dark_red, ['veryhigh', 'vh', '0'], "todo.priority.very_high")
-    HIGH = ("High", RColor.red, ['high', 'h', '1'], "todo.priority.high")
-    MEDIUM = ("Medium", RColor.yellow, ['medium', 'med', 'm', '2'], "todo.priority.medium")
-    LOW = ("Low", RColor.green, ['low', 'l', '3'], "todo.priority.low")
-    VERY_LOW = ("Very Low", RColor.gray, ['verylow', 'vl', '4'], "todo.priority.very_low")
+    VERY_HIGH = ("Very High", RColor.dark_red, ['veryhigh', 'vh', '0'], "sakuraflow.priority.very_high")
+    HIGH = ("High", RColor.red, ['high', 'h', '1'], "sakuraflow.priority.high")
+    MEDIUM = ("Medium", RColor.yellow, ['medium', 'med', 'm', '2'], "sakuraflow.priority.medium")
+    LOW = ("Low", RColor.green, ['low', 'l', '3'], "sakuraflow.priority.low")
+    VERY_LOW = ("Very Low", RColor.gray, ['verylow', 'vl', '4'], "sakuraflow.priority.very_low")
 
 
 class Tier(BaseProperty):

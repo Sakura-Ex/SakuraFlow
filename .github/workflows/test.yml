@@ -1,0 +1,68 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.idea/**'
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.idea/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Lint with flake8
+      run: |
+        # 1. 检查严重错误和不安全的导入习惯
+        # E9: 语法错误
+        # F63: 总是为真的测试
+        # F7: 编译错误
+        # F82: 未定义的变量
+        # F401: 导入但未使用的模块
+        # F403: 使用了 'from module import *'
+        flake8 . --count --select=E9,F63,F7,F82,F401,F403 --show-source --statistics
+        
+        # 2. 其他风格检查 (作为警告，不中断构建)
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run tests
+      run: |
+        # 确保当前目录在 PYTHONPATH 中，以便测试脚本可以导入插件包
+        export PYTHONPATH=$PYTHONPATH:.
+        # 运行所有测试并显示详细输出
+        pytest -v

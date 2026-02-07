@@ -1,8 +1,10 @@
-from typing import Optional, List, Dict, Any
 import time
-from .manager import TodoManager
+from typing import Optional, Dict, Any
+
+from .constants import PROP_ALIASES, LIST_PROP_ALIASES
 from .enums import Status, Tier, Priority
-from .constants import PROP_ALIASES, LIST_PROP_ALIASES, GT_TIERS
+from .manager import TodoManager
+
 
 class SearchCache:
     def __init__(self, ttl: int = 300):
@@ -140,26 +142,26 @@ class TodoController:
         """
         real_prop = PROP_ALIASES.get(prop_alias.lower())
         if not real_prop:
-            return False, None, 'todo.msg.invalid_prop_alias'
+            return False, None, 'sakuraflow.msg.invalid_prop_alias'
 
         processed_val = value
 
         if real_prop == "tier":
             validated = Tier.validate(value)
             if not validated:
-                return False, None, 'todo.msg.invalid_tier'
+                return False, None, 'sakuraflow.msg.invalid_tier'
             processed_val = validated
 
         elif real_prop == "priority":
             validated = Priority.validate(value)
             if not validated:
-                return False, None, 'todo.msg.invalid_priority'
+                return False, None, 'sakuraflow.msg.invalid_priority'
             processed_val = validated
 
         elif real_prop == "status":
             validated = Status.validate(value)
             if not validated:
-                return False, None, 'todo.msg.invalid_status'
+                return False, None, 'sakuraflow.msg.invalid_status'
             processed_val = validated
 
         success = self.manager.update_task(task_id, real_prop, processed_val, editor)
@@ -172,10 +174,10 @@ class TodoController:
         """
         real_prop = LIST_PROP_ALIASES.get(list_alias.lower())
         if not real_prop:
-            return False, 'todo.msg.invalid_list_alias'
+            return False, 'sakuraflow.msg.invalid_list_alias'
 
         if real_prop == "dependencies" and value not in self.manager.data["tasks"]:
-            return False, 'todo.msg.dep_not_found'
+            return False, 'sakuraflow.msg.dep_not_found'
 
         success = self.manager.update_task(task_id, real_prop, value, editor)
         return success, None
@@ -187,7 +189,7 @@ class TodoController:
         """
         real_prop = LIST_PROP_ALIASES.get(list_alias.lower())
         if not real_prop:
-            return False, 'todo.msg.invalid_list_alias'
+            return False, 'sakuraflow.msg.invalid_list_alias'
 
         success = self.manager.remove_item(task_id, real_prop, value, editor)
         return success, None

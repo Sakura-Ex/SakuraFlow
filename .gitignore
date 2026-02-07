@@ -8,3 +8,14 @@
 /dataSources.local.xml
 /.idea/
 /sakura_flow/__pycache__/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest 缓存
+.pytest_cache/
+
+# MCDR 打包输出
+package/
