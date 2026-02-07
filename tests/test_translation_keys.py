@@ -1,6 +1,6 @@
 import os
 import json
-import re
+import ast
 import pytest
 
 # 定义项目根目录
@@ -18,21 +18,32 @@ def get_defined_keys():
     return set(data.keys())
 
 def scan_used_keys():
-    """扫描源代码中使用的翻译键"""
+    """
+    使用 AST 扫描源代码中使用的翻译键
+    只收集硬编码的字符串常量，忽略 f-string 和动态拼接
+    """
     used_keys = set()
-    # 匹配形如 'sakuraflow.xxx' 或 "sakuraflow.xxx" 的字符串
-    # 假设翻译键都以 sakuraflow. 开头
-    pattern = re.compile(r'["\'](sakuraflow\.[a-zA-Z0-9_.]+)["\']')
     
     for root, _, files in os.walk(SOURCE_DIR):
         for file in files:
             if file.endswith('.py'):
                 file_path = os.path.join(root, file)
                 with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    matches = pattern.findall(content)
-                    for match in matches:
-                        used_keys.add(match)
+                    try:
+                        tree = ast.parse(f.read(), filename=file_path)
+                    except SyntaxError:
+                        continue # 忽略语法错误的文件（如果有）
+
+                for node in ast.walk(tree):
+                    # 在 Python 3.8+ 中，字符串常量是 ast.Constant
+                    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                        val = node.value
+                        # 筛选条件：
+                        # 1. 以 sakuraflow. 开头
+                        # 2. 不以 . 结尾（排除类似 "sakuraflow.prop." 的动态前缀）
+                        if val.startswith('sakuraflow.') and not val.endswith('.'):
+                            used_keys.add(val)
+                            
     return used_keys
 
 def test_translation_keys_exist():
@@ -41,11 +52,6 @@ def test_translation_keys_exist():
     used_keys = scan_used_keys()
     
     missing_keys = used_keys - defined_keys
-    
-    # 过滤掉一些可能的动态键或误报
-    # 如果有已知的动态生成的键前缀，可以在这里过滤
-    # 例如: sakuraflow.msg.{variable} 这种无法静态检测，但如果代码里写了 'sakuraflow.msg.' 可能会被匹配到
-    # 这里假设代码里写的都是完整的键
     
     if missing_keys:
         pytest.fail(f"发现 {len(missing_keys)} 个未定义的翻译键:\n" + "\n".join(missing_keys))

@@ -1,8 +1,7 @@
 from mcdreforged.api.all import RTextBase, RText, RColor, RTextList, ServerInterface, CommandSource, RAction, RStyle
 
 from . import TodoManager
-from .constants import *
-from .constants import PAGE_SIZE
+from .constants import COMMAND_PREFIX, PAGE_SIZE, TASK_PROPERTIES, LIST_PROPERTIES, COLON
 from .enums import Status, Tier, Priority
 from .utils import Utils, ItemizeBuilder
 
