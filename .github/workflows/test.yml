@@ -129,5 +129,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.VERSION) }}
-          files: package/*.mcdr
+          name: Sakura Flow ${{ env.VERSION }}
+          files: package/*.pyz
           generate_release_notes: true
