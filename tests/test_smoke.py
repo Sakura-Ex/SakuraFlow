@@ -1,4 +1,8 @@
+import os
 import pytest
+
+# 定义项目根目录
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_plugin_structure():
     """
@@ -17,5 +21,5 @@ def test_metadata_exists():
     """
     验证插件元数据文件是否存在
     """
-    import os
-    assert os.path.exists('mcdreforged.plugin.json'), "缺少 mcdreforged.plugin.json 文件"
+    metadata_file = os.path.join(PROJECT_ROOT, 'mcdreforged.plugin.json')
+    assert os.path.exists(metadata_file), "缺少 mcdreforged.plugin.json 文件"
