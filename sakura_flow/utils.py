@@ -1,6 +1,6 @@
 from typing import Optional, Any, List
 
-from mcdreforged.api.all import *
+from mcdreforged.api.all import ServerInterface, RTextList, RText, RColor, RTextBase, RAction
 
 from .constants import *
 from .constants import ITEMIZE_PREFIX
