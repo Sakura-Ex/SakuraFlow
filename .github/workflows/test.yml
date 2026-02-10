@@ -90,9 +90,9 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SakuraFlow-Build
+          name: SakuraFlow-Build ${{ github.sha }}
           path: package/*.pyz
-          retention-days: 5
+          retention-days: 7
 
   # 3. 发布任务 (构建成功后，如果是 Tag 推送或 Main 分支版本更新时运行)
   release:
@@ -121,7 +121,7 @@ jobs:
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: SakuraFlow-Build
+          name: SakuraFlow-Build ${{ github.sha }}
           path: package/
 
       - name: Create GitHub Release
