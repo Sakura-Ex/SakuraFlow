@@ -17,6 +17,8 @@ class FileLock:
         start_time = time.time()
         while True:
             try:
+                # 确保锁文件的父目录存在
+                os.makedirs(os.path.dirname(self.lock_file), exist_ok=True)
                 # 尝试以独占模式创建锁文件
                 fd = os.open(self.lock_file, os.O_CREAT | os.O_EXCL | os.O_RDWR)
                 os.close(fd)
