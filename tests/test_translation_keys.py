@@ -1,12 +1,13 @@
-import os
-import json
 import ast
+import json
+import os
+
 import pytest
 
 # 定义项目根目录
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LANG_FILE = os.path.join(PROJECT_ROOT, 'lang', 'zh_cn.json')
-SOURCE_DIR = os.path.join(PROJECT_ROOT, 'sakura_flow')
+SCAN_ROOT = PROJECT_ROOT
 
 def get_defined_keys():
     """读取语言文件并返回所有定义的键"""
@@ -23,8 +24,8 @@ def scan_used_keys():
     只收集硬编码的字符串常量，忽略 f-string 和动态拼接
     """
     used_keys = set()
-    
-    for root, _, files in os.walk(SOURCE_DIR):
+
+    for root, _, files in os.walk(SCAN_ROOT):
         for file in files:
             if file.endswith('.py'):
                 file_path = os.path.join(root, file)

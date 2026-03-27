@@ -1,6 +1,5 @@
 from mcdreforged.api.all import RTextBase, RText, RColor, RTextList, ServerInterface, CommandSource, RAction, RStyle
 
-from . import TodoManager
 from .constants import COMMAND_PREFIX, PAGE_SIZE, TASK_PROPERTIES, LIST_PROPERTIES, COLON
 from .enums import Status, Tier, Priority
 from .utils import Utils, ItemizeBuilder
@@ -313,12 +312,12 @@ class UI:
         )
 
     @staticmethod
-    def render_paged_list(source: CommandSource, tasks: dict, manager: TodoManager, header_key: str, empty_key: str, 
+    def render_paged_list(source: CommandSource, tasks: dict, all_tasks: dict, header_key: str, empty_key: str,
                           input_page: int = 1, cmd_prefix: str = "list"):
         """
         渲染分页列表
         :param tasks: 要渲染的任务字典 {tid: task_data}
-        :param manager: TodoManager 实例，用于查找依赖任务信息
+        :param all_tasks: 全量任务字典，用于查找依赖任务信息
         :param cmd_prefix: 翻页命令的前缀，例如 "search"
         """
         server = source.get_server()
@@ -350,7 +349,7 @@ class UI:
         source.reply(UI.make_dividing_line(server.tr(header_key), newline=False))
 
         for tid, task in filtered_tasks[start_index:end_index]:
-            source.reply(UI.render_task_line(tid, task, manager.data["tasks"], server, source))
+            source.reply(UI.render_task_line(tid, task, all_tasks, server, source))
 
         # 底部显示页码和翻页按钮
         footer = RTextList()

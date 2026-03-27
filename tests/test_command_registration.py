@@ -1,13 +1,15 @@
 import pytest
-from sakura_flow.mcdr_entry import register_mcdr_commands
 from mcdreforged.api.command import Literal
 
-def test_command_registration(mock_server, mock_controller):
+from sakura_flow.mcdr_entry import register_mcdr_commands
+
+
+def test_command_registration(mock_server, mock_service):
     """
     测试命令注册流程是否正常，确保命令树构建没有语法错误
     """
     try:
-        register_mcdr_commands(mock_server, mock_controller)
+        register_mcdr_commands(mock_server, mock_service)
     except Exception as e:
         pytest.fail(f"命令注册失败: {e}")
 

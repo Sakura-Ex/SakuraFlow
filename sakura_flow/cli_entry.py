@@ -1,6 +1,8 @@
 import argparse
-from .controller import TodoController
+
+from .application import TodoApplication
 from .enums import Status
+
 
 def register_cli_commands(parser: argparse.ArgumentParser):
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -71,9 +73,10 @@ def register_cli_commands(parser: argparse.ArgumentParser):
     dt_parser = subparsers.add_parser("default_tier", help="Set default tier")
     dt_parser.add_argument("tier", help="Tier value")
 
-def handle_cli_command(args, controller: TodoController):
+
+def handle_cli_command(args, service: TodoApplication):
     if args.command == "add":
-        task_id = controller.add_task(args.title, args.creator)
+        task_id = service.add_task(args.title, args.creator)
         print(f"Task created with ID: {task_id}")
 
     elif args.command == "list":
@@ -89,7 +92,7 @@ def handle_cli_command(args, controller: TodoController):
 
         # If criteria exists, use search_tasks
         if criteria:
-            tasks = controller.search_tasks(criteria)
+            tasks = service.search_tasks(criteria)
             # Apply archive/all filter on top of search results if needed?
             # search_tasks currently searches ALL tasks.
             # We should probably filter by status if --all is not present and status is not in criteria.
@@ -110,9 +113,9 @@ def handle_cli_command(args, controller: TodoController):
         else:
             # Fallback to original logic
             if args.archive:
-                 tasks = controller.get_archived_tasks()
+                tasks = service.get_archived_tasks()
             else:
-                 tasks = controller.get_tasks(include_done=args.all)
+                tasks = service.get_tasks(include_done=args.all)
         
         print(f"{'ID':<5} {'Status':<12} {'Title'}")
         print("-" * 40)
@@ -120,7 +123,7 @@ def handle_cli_command(args, controller: TodoController):
             print(f"{tid:<5} {task['status']:<12} {task['title']}")
 
     elif args.command == "info":
-        task = controller.get_task(args.id)
+        task = service.get_task(args.id)
         if task:
             print(f"ID: {args.id}")
             print(f"Title: {task['title']}")
@@ -140,58 +143,58 @@ def handle_cli_command(args, controller: TodoController):
             print(f"Task {args.id} not found.")
 
     elif args.command == "set":
-        success, val, err = controller.set_property(args.id, args.prop, args.value, args.editor)
+        success, val, err = service.set_property(args.id, args.prop, args.value, args.editor)
         if success:
             print(f"Set {args.prop} to {val}")
         else:
             print(f"Error: {err}")
 
     elif args.command == "append":
-        success, err = controller.append_list_property(args.id, args.list_prop, args.value, args.editor)
+        success, err = service.append_list_property(args.id, args.list_prop, args.value, args.editor)
         if success:
             print(f"Appended {args.value} to {args.list_prop}")
         else:
             print(f"Error: {err}")
 
     elif args.command == "remove":
-        success, err = controller.remove_list_property(args.id, args.list_prop, args.value, args.editor)
+        success, err = service.remove_list_property(args.id, args.list_prop, args.value, args.editor)
         if success:
             print(f"Removed {args.value} from {args.list_prop}")
         else:
             print(f"Error: {err}")
 
     elif args.command == "note":
-        if controller.add_note(args.id, args.content, args.author):
+        if service.add_note(args.id, args.content, args.author):
             print("Note added.")
         else:
             print("Failed to add note.")
 
     elif args.command == "complete":
-        if controller.update_status(args.id, Status.DONE, "CLI"):
+        if service.update_status(args.id, Status.DONE, "CLI"):
             print(f"Task {args.id} marked as completed.")
         else:
             print(f"Failed to update task {args.id}.")
 
     elif args.command == "pause":
-        if controller.update_status(args.id, Status.ON_HOLD, "CLI"):
+        if service.update_status(args.id, Status.ON_HOLD, "CLI"):
             print(f"Task {args.id} paused.")
         else:
             print(f"Failed to update task {args.id}.")
 
     elif args.command == "resume":
-        if controller.update_status(args.id, Status.IN_PROGRESS, "CLI"):
+        if service.update_status(args.id, Status.IN_PROGRESS, "CLI"):
             print(f"Task {args.id} resumed.")
         else:
             print(f"Failed to update task {args.id}.")
 
     elif args.command == "restore":
-        if controller.update_status(args.id, Status.IN_PROGRESS, "CLI"):
+        if service.update_status(args.id, Status.IN_PROGRESS, "CLI"):
             print(f"Task {args.id} restored.")
         else:
             print(f"Failed to update task {args.id}.")
             
     elif args.command == "default_tier":
-        if controller.set_default_tier(args.tier):
+        if service.set_default_tier(args.tier):
             print(f"Default tier set to {args.tier}")
         else:
             print("Invalid tier.")
