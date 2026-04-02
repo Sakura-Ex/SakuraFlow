@@ -1,6 +1,6 @@
 {
   "id": "sakura_flow",
-  "version": "0.3.0",
+  "version": "0.4.0-sql-dev",
   "name": "Sakura Flow",
   "description": "一款专注于依赖管理与深度交互的 MCDReforged 待办事项插件。",
   "author": "Sakura-Ex",
@@ -8,7 +8,11 @@
   "dependencies": {
     "mcdreforged": ">=2.15.0"
   },
+  "archive_name": "SakuraFlow-{version}.pyz",
   "resources": [
-    "lang"
+    "lang",
+    "__main__.py",
+    "LICENSE",
+    "requirements.txt"
   ]
 }
