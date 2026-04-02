@@ -33,3 +33,10 @@ class TaskRepository(Protocol):
     def set_default_tier(self, tier: str):
         # Deprecated: use field definition defaults (e.g. upsert_field_definition) instead.
         ...
+
+    def get_field_definition(self, key_name: str) -> Optional[Dict[str, Any]]:
+        ...
+
+    def set_field_default(self, key_name: str, default_value: str) -> bool:
+        ...
+

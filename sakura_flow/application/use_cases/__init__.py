@@ -4,6 +4,7 @@ from .task_mutations import (
     append_list_property,
     remove_list_property,
     set_default_tier,
+    set_field_default,
     set_property,
     update_status,
 )
@@ -15,6 +16,7 @@ __all__ = [
     "append_list_property",
     "remove_list_property",
     "set_default_tier",
+    "set_field_default",
     "set_property",
     "update_status",
     "get_archived_tasks",

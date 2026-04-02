@@ -10,6 +10,7 @@
 # - list fields do not support default_value
 # - enum fields must define enum_values/options
 # - key_name is case-insensitive and stored as lowercase
+# - enum option order is the canonical 0-based id order
 
 version: 1
 
@@ -25,6 +26,16 @@ custom_fields: [ ]
   #     - early
   #     - mid
   #     - late
+
+  # Example 1b: enum options with explicit key/label metadata
+  # - key_name: machine_stage
+  #   value_kind: enum
+  #   default_value: mid
+  #   enum_values:
+  #     - key: early
+  #       label: Early Phase
+  #     - key: mid
+  #       label: Mid Phase
 
   # Example 2: scalar field
   # - key_name: owner_group

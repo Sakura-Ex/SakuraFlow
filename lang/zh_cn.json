@@ -111,6 +111,7 @@
   "sakuraflow.msg.invalid_tier": "无效的电压等级！请输入 0-{0} 或名称: {1}",
   "sakuraflow.msg.invalid_priority": "无效优先级！请输入 0-4 或名称: {0}",
   "sakuraflow.msg.invalid_status": "无效状态！请输入: {0}",
+  "sakuraflow.msg.invalid_enum_value": "字段 {0} 的值无效！可选值: {1}",
   "sakuraflow.msg.set_success": "任务 #{0} 属性 {1} 已更新为 {2}",
   "sakuraflow.msg.note_success": "进度已记录至任务 #{0}",
   "sakuraflow.msg.restore_success": "任务 #{0} 已从归档中恢复至进行中状态 ▶",

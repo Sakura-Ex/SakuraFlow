@@ -31,6 +31,59 @@ custom_fields: []
 """
 
 
+def _normalize_enum_option(value: Any, options: List[str]) -> str | None:
+    if value is None:
+        return None
+
+    raw = str(value).strip()
+    if raw.isdigit():
+        idx = int(raw)
+        if 0 <= idx < len(options):
+            return options[idx]
+
+    lowered = raw.lower()
+    for option in options:
+        if str(option).lower() == lowered:
+            return str(option)
+    return None
+
+
+def _normalize_enum_options(raw_options: Any, key: str, warnings: List[str]) -> List[str] | None:
+    if not isinstance(raw_options, list) or not raw_options:
+        warnings.append(f"custom enum field '{key}' must define non-empty enum_values/options")
+        return None
+
+    normalized_options: List[str] = []
+    seen_lower = set()
+
+    for idx, raw in enumerate(raw_options):
+        option_key: str | None = None
+
+        if isinstance(raw, dict):
+            raw_key = raw.get("key", raw.get("value"))
+            if raw_key is None or not str(raw_key).strip():
+                warnings.append(f"custom enum field '{key}' option[{idx}] missing key/value")
+                return None
+            option_key = str(raw_key).strip()
+        else:
+            text = str(raw).strip()
+            if not text:
+                continue
+            option_key = text
+
+        lowered = option_key.lower()
+        if lowered in seen_lower:
+            warnings.append(f"custom enum field '{key}' has duplicated option '{option_key}'")
+            return None
+        seen_lower.add(lowered)
+        normalized_options.append(option_key)
+
+    if not normalized_options:
+        warnings.append(f"custom enum field '{key}' has empty enum options")
+        return None
+    return normalized_options
+
+
 def _load_template_text(template_path: str | None = None) -> str:
     # Explicit template path is primarily used by tests and local overrides.
     if template_path and os.path.exists(template_path):
@@ -126,23 +179,19 @@ def load_custom_field_definitions(config_path: str) -> Tuple[List[Dict[str, Any]
 
         enum_values = item["enum_values"]
         if kind == "enum":
-            if not isinstance(enum_values, list) or not enum_values:
-                warnings.append(f"custom enum field '{key}' must define non-empty enum_values/options")
-                continue
-            normalized_options = [str(v) for v in enum_values if str(v).strip()]
+            normalized_options = _normalize_enum_options(enum_values, key, warnings)
             if not normalized_options:
-                warnings.append(f"custom enum field '{key}' has empty enum options")
                 continue
             item["enum_values"] = normalized_options
-            if item["default_value"] is not None:
-                default_str = str(item["default_value"])
-                option_map = {opt.lower(): opt for opt in normalized_options}
-                if default_str.lower() not in option_map:
+            normalized_default = _normalize_enum_option(item["default_value"], normalized_options)
+            if normalized_default is None:
+                if item["default_value"] is not None:
                     warnings.append(
-                        f"custom enum field '{key}' default_value '{default_str}' not in enum options: {normalized_options}"
+                        f"custom enum field '{key}' default_value '{item['default_value']}' invalid; fallback to first option"
                     )
-                    continue
-                item["default_value"] = option_map[default_str.lower()]
+                item["default_value"] = normalized_options[0]
+            else:
+                item["default_value"] = normalized_default
         else:
             item["enum_values"] = []
             if item["default_value"] is not None:

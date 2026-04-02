@@ -54,6 +54,98 @@ custom_fields:
     assert task["custom"]["owner_group"] == "ops"
 
 
+def test_enum_field_without_default_uses_first_option(tmp_path):
+    config_path = tmp_path / "custom_fields.yml"
+    config_path.write_text(
+        """
+version: 1
+custom_fields:
+  - key_name: machine_stage
+    value_kind: enum
+    enum_values: [early, mid, late]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    definitions, warnings = load_custom_field_definitions(str(config_path))
+    assert warnings == []
+    assert len(definitions) == 1
+    assert definitions[0]["default_value"] == "early"
+
+
+def test_enum_field_default_accepts_index_id(tmp_path):
+    config_path = tmp_path / "custom_fields.yml"
+    config_path.write_text(
+        """
+version: 1
+custom_fields:
+  - key_name: machine_stage
+    value_kind: enum
+    default_value: 2
+    enum_values: [early, mid, late]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    definitions, warnings = load_custom_field_definitions(str(config_path))
+    assert warnings == []
+    assert len(definitions) == 1
+    assert definitions[0]["default_value"] == "late"
+
+
+def test_enum_field_accepts_keyed_option_objects_with_ordered_ids(tmp_path):
+    config_path = tmp_path / "custom_fields.yml"
+    config_path.write_text(
+        """
+version: 1
+custom_fields:
+  - key_name: machine_stage
+    value_kind: enum
+    default_value: 1
+    enum_values:
+      - id: 0
+        key: early
+        label: Early Phase
+      - id: 1
+        key: mid
+        label: Mid Phase
+      - id: 2
+        key: late
+        label: Late Phase
+""".strip(),
+        encoding="utf-8",
+    )
+
+    definitions, warnings = load_custom_field_definitions(str(config_path))
+    assert warnings == []
+    assert len(definitions) == 1
+    assert definitions[0]["enum_values"] == ["early", "mid", "late"]
+    assert definitions[0]["default_value"] == "mid"
+
+
+def test_enum_field_ignores_explicit_option_ids(tmp_path):
+    config_path = tmp_path / "custom_fields.yml"
+    config_path.write_text(
+        """
+version: 1
+custom_fields:
+  - key_name: machine_stage
+    value_kind: enum
+    enum_values:
+      - id: 1
+        key: early
+      - id: 0
+        key: mid
+""".strip(),
+        encoding="utf-8",
+    )
+
+    definitions, warnings = load_custom_field_definitions(str(config_path))
+    assert len(definitions) == 1
+    assert warnings == []
+    assert definitions[0]["enum_values"] == ["early", "mid"]
+
+
 def test_ensure_config_copies_template_with_comments(tmp_path):
     config_path = tmp_path / "custom_fields.yml"
     template_path = tmp_path / "template.yml"

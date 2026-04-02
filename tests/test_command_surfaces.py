@@ -1,7 +1,9 @@
 import pytest
+from argparse import Namespace
+from unittest.mock import MagicMock
 from mcdreforged.api.command import Literal
 
-from sakura_flow.cli_entry import _parse_field_filters
+from sakura_flow.cli_entry import _parse_field_filters, handle_cli_command
 from sakura_flow.help_core import get_commands, render_cli
 from sakura_flow.mcdr_entry import _parse_search_criteria, register_mcdr_commands
 
@@ -86,3 +88,34 @@ def test_render_cli_help_includes_same_command_surface():
     assert "list" in output
     assert "append" in output
     assert "MCDR: !!sf list [page]" in output
+
+
+def test_cli_set_builtin_enum_error_shows_options(capsys):
+    service = MagicMock()
+    service.set_property.return_value = (False, None, "sakuraflow.msg.invalid_priority")
+
+    args = Namespace(command="set", id="1", prop="priority", value="bad", editor="CLI")
+    handle_cli_command(args, service)
+
+    output = capsys.readouterr().out.strip()
+    assert "invalid value for priority" in output
+    assert "Very High" in output
+    assert "Very Low" in output
+
+
+def test_cli_set_custom_enum_error_shows_field_options(capsys):
+    service = MagicMock()
+    service.set_property.return_value = (False, None, "sakuraflow.msg.invalid_enum_value")
+    service.get_field_definition.return_value = {
+        "key_name": "machine_stage",
+        "value_kind": "enum",
+        "enum_values": ["early", "mid", "late"],
+    }
+
+    args = Namespace(command="set", id="1", prop="machine_stage", value="bad", editor="CLI")
+    handle_cli_command(args, service)
+
+    output = capsys.readouterr().out.strip()
+    assert "invalid value for machine_stage" in output
+    assert "early, mid, late" in output
+    service.get_field_definition.assert_called_once_with("machine_stage")

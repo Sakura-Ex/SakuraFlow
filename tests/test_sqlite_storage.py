@@ -1,7 +1,7 @@
 import json
 import os
 
-from sakura_flow.application.use_cases.task_mutations import append_list_property
+from sakura_flow.application.use_cases.task_mutations import append_list_property, set_property
 from sakura_flow.manager import TodoManager
 
 
@@ -192,6 +192,25 @@ def test_custom_scalar_and_enum_defaults_are_applied_on_create(tmp_path):
     assert task["machine_stage"] == "mid"
 
 
+def test_all_configured_custom_fields_are_materialized_on_add(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    assert manager.upsert_field_definition("owner_group", "scalar", default_value="ops")
+    assert manager.upsert_field_definition("machine_stage", "enum", default_value="mid", enum_values=["early", "mid", "late"])
+    assert manager.upsert_field_definition("watchers", "list")
+    assert manager.upsert_field_definition("notes_template", "scalar")
+
+    task_id = manager.add_task("Materialized task", "Alice")
+    task = manager.get_task(task_id)
+
+    assert task is not None
+    assert task["custom"]["owner_group"] == "ops"
+    assert task["custom"]["machine_stage"] == "mid"
+    assert task["custom"]["notes_template"] == ""
+    assert task["custom_lists"]["watchers"] == []
+
+
 def test_list_definition_has_no_default_and_roundtrip_works(tmp_path):
     db_path = tmp_path / "tasks.db"
     manager = TodoManager(str(db_path))
@@ -218,3 +237,59 @@ def test_unknown_custom_field_is_rejected_until_registered(tmp_path):
 
     assert manager.upsert_field_definition("unregistered_key", "scalar", default_value="")
     assert manager.update_task(task_id, "unregistered_key", "x", "Alice")
+
+
+def test_custom_enum_without_default_falls_back_to_first_option(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    assert manager.upsert_field_definition("machine_stage", "enum", enum_values=["early", "mid", "late"])
+
+    task_id = manager.add_task("Enum fallback test", "Alice")
+    task = manager.get_task(task_id)
+    assert task is not None
+    assert task["custom"]["machine_stage"] == "early"
+
+
+def test_set_field_default_accepts_enum_index_id(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    assert manager.upsert_field_definition("machine_stage", "enum", enum_values=["early", "mid", "late"])
+    assert manager.set_field_default("machine_stage", "1")
+
+    definition = manager.get_field_definition("machine_stage")
+    assert definition is not None
+    assert definition["default_value"] == "mid"
+
+
+def test_set_property_rejects_invalid_custom_enum_with_specific_error(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    assert manager.upsert_field_definition(
+        "machine_stage",
+        "enum",
+        default_value="mid",
+        enum_values=["early", "mid", "late"],
+    )
+    task_id = manager.add_task("Enum validation", "Alice")
+
+    success, _val, err = set_property(manager, task_id, "machine_stage", "invalid", "Alice")
+    assert not success
+    assert err == "sakuraflow.msg.invalid_enum_value"
+
+    task = manager.get_task(task_id)
+    assert task is not None
+    assert task["machine_stage"] == "mid"
+
+
+def test_set_property_keeps_builtin_enum_error_keys(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    task_id = manager.add_task("Builtin enum validation", "Alice")
+    success, _val, err = set_property(manager, task_id, "priority", "not_a_priority", "Alice")
+
+    assert not success
+    assert err == "sakuraflow.msg.invalid_priority"
