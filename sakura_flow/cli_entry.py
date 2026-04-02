@@ -1,11 +1,35 @@
 import argparse
+import warnings
 
 from .application import TodoApplication
 from .enums import Status
+from .help_core import render_cli
+
+
+def _parse_field_filters(field_args):
+    criteria = {}
+    if not field_args:
+        return criteria, None
+
+    for raw in field_args:
+        if "=" not in raw:
+            return {}, f"Invalid --field value '{raw}', expected key=value"
+        key, val = raw.split("=", 1)
+        key = key.strip().lower()
+        val = val.strip()
+        if not key:
+            return {}, f"Invalid --field value '{raw}', key is empty"
+        if not val:
+            return {}, f"Invalid --field value '{raw}', value is empty"
+        criteria[key] = val
+    return criteria, None
 
 
 def register_cli_commands(parser: argparse.ArgumentParser):
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    help_parser = subparsers.add_parser("help", help="Show unified command help")
+    help_parser.add_argument("topic", nargs="?", help="Command name or alias")
 
     # Add
     add_parser = subparsers.add_parser("add", help="Add a new task")
@@ -24,6 +48,8 @@ def register_cli_commands(parser: argparse.ArgumentParser):
     list_parser.add_argument("--creator", help="Filter by creator")
     list_parser.add_argument("--collab", help="Filter by collaborator")
     list_parser.add_argument("--label", help="Filter by label")
+    list_parser.add_argument("--field", action="append", default=[],
+                             help="Filter by custom field, e.g. --field machine_stage=mid")
 
     # Info
     info_parser = subparsers.add_parser("info", help="Show task details")
@@ -70,12 +96,15 @@ def register_cli_commands(parser: argparse.ArgumentParser):
     restore_parser.add_argument("id", help="Task ID")
 
     # Default Tier
-    dt_parser = subparsers.add_parser("default_tier", help="Set default tier")
+    dt_parser = subparsers.add_parser("default_tier", help="Set default tier (deprecated)")
     dt_parser.add_argument("tier", help="Tier value")
 
 
 def handle_cli_command(args, service: TodoApplication):
-    if args.command == "add":
+    if args.command == "help":
+        print(render_cli(getattr(args, "topic", None)))
+
+    elif args.command == "add":
         task_id = service.add_task(args.title, args.creator)
         print(f"Task created with ID: {task_id}")
 
@@ -89,6 +118,12 @@ def handle_cli_command(args, service: TodoApplication):
         if args.creator: criteria['creator'] = args.creator
         if args.collab: criteria['collaborator'] = args.collab
         if args.label: criteria['label'] = args.label
+
+        custom_criteria, custom_err = _parse_field_filters(getattr(args, "field", []))
+        if custom_err:
+            print(f"Error: {custom_err}")
+            return
+        criteria.update(custom_criteria)
 
         # If criteria exists, use search_tasks
         if criteria:
@@ -150,11 +185,16 @@ def handle_cli_command(args, service: TodoApplication):
             print(f"Error: {err}")
 
     elif args.command == "append":
-        success, err = service.append_list_property(args.id, args.list_prop, args.value, args.editor)
+        success, err, error_detail = service.append_list_property(args.id, args.list_prop, args.value, args.editor)
         if success:
             print(f"Appended {args.value} to {args.list_prop}")
         else:
-            print(f"Error: {err}")
+            if err == "sakuraflow.msg.self_dependency":
+                print(f"Error: self dependency: {args.id}->{args.value}({args.id}->{args.id})")
+            elif err == "sakuraflow.msg.circular_dependency" and error_detail:
+                print(f"Error: circular dependency: {error_detail}")
+            else:
+                print(f"Error: {err}")
 
     elif args.command == "remove":
         success, err = service.remove_list_property(args.id, args.list_prop, args.value, args.editor)
@@ -194,6 +234,11 @@ def handle_cli_command(args, service: TodoApplication):
             print(f"Failed to update task {args.id}.")
             
     elif args.command == "default_tier":
+        warnings.warn(
+            "CLI command 'default_tier' is deprecated; use field-definition defaults.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if service.set_default_tier(args.tier):
             print(f"Default tier set to {args.tier}")
         else:

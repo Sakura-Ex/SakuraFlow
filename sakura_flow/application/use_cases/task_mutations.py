@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Optional
 
 from ...constants import LIST_PROP_ALIASES, PROP_ALIASES
@@ -24,7 +25,7 @@ def set_property(
         value: str,
         editor: str,
 ) -> tuple[bool, Any, Optional[str]]:
-    real_prop = PROP_ALIASES.get(prop_alias.lower())
+    real_prop = PROP_ALIASES.get(prop_alias.lower()) or prop_alias.strip()
     if not real_prop:
         return False, None, "sakuraflow.msg.invalid_prop_alias"
 
@@ -55,16 +56,27 @@ def append_list_property(
         list_alias: str,
         value: str,
         editor: str,
-) -> tuple[bool, Optional[str]]:
-    real_prop = LIST_PROP_ALIASES.get(list_alias.lower())
+) -> tuple[bool, Optional[str], Optional[str]]:
+    real_prop = LIST_PROP_ALIASES.get(list_alias.lower()) or list_alias.strip()
     if not real_prop:
-        return False, "sakuraflow.msg.invalid_list_alias"
+        return False, "sakuraflow.msg.invalid_list_alias", None
+
+    if real_prop == "dependencies" and str(task_id) == str(value):
+        return False, "sakuraflow.msg.self_dependency", f"{task_id}->{value}({task_id}->{task_id})"
 
     if real_prop == "dependencies" and not repository.task_exists(value):
-        return False, "sakuraflow.msg.dep_not_found"
+        return False, "sakuraflow.msg.dep_not_found", None
+
+    if real_prop == "dependencies":
+        success, cycle_path = repository.append_dependency(task_id, value, editor)
+        if not success and cycle_path:
+            if str(task_id) == str(value):
+                return False, "sakuraflow.msg.self_dependency", cycle_path
+            return False, "sakuraflow.msg.circular_dependency", cycle_path
+        return success, None, None
 
     success = repository.update_task(task_id, real_prop, value, editor)
-    return success, None
+    return success, None, None
 
 
 def remove_list_property(
@@ -74,7 +86,7 @@ def remove_list_property(
         value: str,
         editor: str,
 ) -> tuple[bool, Optional[str]]:
-    real_prop = LIST_PROP_ALIASES.get(list_alias.lower())
+    real_prop = LIST_PROP_ALIASES.get(list_alias.lower()) or list_alias.strip()
     if not real_prop:
         return False, "sakuraflow.msg.invalid_list_alias"
 
@@ -83,6 +95,11 @@ def remove_list_property(
 
 
 def set_default_tier(repository: TaskRepository, tier_val: str) -> bool:
+    warnings.warn(
+        "set_default_tier is deprecated; configure defaults via field definitions instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     validated = Tier.validate(tier_val)
     if validated:
         repository.set_default_tier(validated)

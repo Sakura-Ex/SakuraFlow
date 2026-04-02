@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, Optional
 
 from .search_cache import SearchCache
@@ -52,4 +53,9 @@ class TodoApplication:
         return task_mutations.remove_list_property(self.repository, task_id, list_alias, value, editor)
 
     def set_default_tier(self, tier_val: str) -> bool:
+        warnings.warn(
+            "TodoApplication.set_default_tier is deprecated; use field-definition defaults.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return task_mutations.set_default_tier(self.repository, tier_val)

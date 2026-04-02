@@ -1,3 +1,5 @@
+import warnings
+
 from mcdreforged.api.all import PluginServerInterface, CommandSource, CommandContext, RText, RColor, RStyle
 from mcdreforged.api.command import Literal, Integer, GreedyText, Text
 
@@ -35,6 +37,10 @@ def _parse_search_criteria(query_raw: str) -> dict:
             # creator is search-only and not part of set/append aliases.
             if key == 'creator':
                 criteria['creator'] = val
+                continue
+
+            # Keep unknown keys for dynamic custom-field search.
+            criteria[key] = val
         else:
             criteria['title'] = part
 
@@ -146,12 +152,20 @@ def register_mcdr_commands(server: PluginServerInterface, service: TodoApplicati
 
     def on_append(source: CommandSource, context: CommandContext):
         editor = source.player if source.is_player else "Console"
-        success, err = service.append_list_property(str(context['id']), context['list_prop'], str(context['value']),
-                                                    editor)
+        success, err, error_detail = service.append_list_property(
+            str(context['id']),
+            context['list_prop'],
+            str(context['value']),
+            editor,
+        )
         
         if not success:
             if err == 'sakuraflow.msg.dep_not_found':
                 source.reply(Utils.error_msg(server, err, context['value']))
+            elif err == 'sakuraflow.msg.self_dependency':
+                source.reply(Utils.error_msg(server, err, context['id']))
+            elif err == 'sakuraflow.msg.circular_dependency':
+                source.reply(Utils.error_msg(server, err, error_detail or context['value']))
             else:
                 source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context['list_prop']))
             return
@@ -180,6 +194,11 @@ def register_mcdr_commands(server: PluginServerInterface, service: TodoApplicati
             source.reply(Utils.info_msg(server, msg_key, context['id']))
 
     def on_default_tier(source: CommandSource, context: CommandContext):
+        warnings.warn(
+            "!!todo default_tier is deprecated; use field-definition defaults.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if service.set_default_tier(context['tier']):
              source.reply(Utils.info_msg(server, 'sakuraflow.msg.default_tier_success', context['tier']))
         else:
