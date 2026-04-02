@@ -51,24 +51,10 @@ def test_translation_keys_exist():
     """测试代码中引用的所有翻译键是否都在语言文件中定义"""
     defined_keys = get_defined_keys()
     used_keys = scan_used_keys()
-    
+
     missing_keys = used_keys - defined_keys
-    
+
     if missing_keys:
         pytest.fail(f"发现 {len(missing_keys)} 个未定义的翻译键:\n" + "\n".join(missing_keys))
 
-def test_unused_keys():
-    """(可选) 测试是否有未使用的翻译键"""
-    # 这个测试通常作为警告而不是错误，因为有些键可能只在动态生成时使用
-    defined_keys = get_defined_keys()
-    used_keys = scan_used_keys()
-    
-    unused = defined_keys - used_keys
-    # 这里我们只打印警告，不让测试失败
-    if unused:
-        print(f"\n警告: 发现 {len(unused)} 个可能未使用的翻译键 (可能是动态调用):")
-        # 只打印前10个
-        for k in list(unused)[:10]:
-            print(f"  - {k}")
-        if len(unused) > 10:
-            print("  ...")
+# 开发期一次性诊断（未使用键提示）已移除，避免 PR 流水线中的噪音输出。

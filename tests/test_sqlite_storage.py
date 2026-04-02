@@ -1,6 +1,7 @@
 import json
 import os
 
+from sakura_flow.application.use_cases.task_mutations import append_list_property
 from sakura_flow.manager import TodoManager
 
 
@@ -112,3 +113,108 @@ def test_search_tasks_title_like_escapes_wildcards(tmp_path):
 
     results = manager.search_tasks({"title": "100%"})
     assert list(results.keys()) == [t1]
+
+
+def test_task_cannot_depend_on_itself(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    task_id = manager.add_task("Self dependency test", "Alice")
+    assert not manager.update_task(task_id, "dependencies", task_id, "Alice")
+    task = manager.get_task(task_id)
+    assert task is not None
+    assert task.get("dependencies", []) == []
+
+
+def test_append_list_property_returns_self_dependency_error(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    task_id = manager.add_task("Self dependency test", "Alice")
+    success, err, arg = append_list_property(manager, task_id, "dependencies", task_id, "Alice")
+
+    assert not success
+    assert err == "sakuraflow.msg.self_dependency"
+    assert arg == f"{task_id}->{task_id}({task_id}->{task_id})"
+
+
+def test_task_cannot_form_indirect_dependency_cycle(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    a = manager.add_task("A", "Alice")
+    b = manager.add_task("B", "Alice")
+    c = manager.add_task("C", "Alice")
+
+    assert manager.update_task(a, "dependencies", b, "Alice")
+    assert manager.update_task(b, "dependencies", c, "Alice")
+    assert not manager.update_task(c, "dependencies", a, "Alice")
+
+    task_c = manager.get_task(c)
+    assert task_c is not None
+    assert task_c.get("dependencies", []) == []
+
+
+def test_append_list_property_returns_cycle_path_error(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    a = manager.add_task("A", "Alice")
+    b = manager.add_task("B", "Alice")
+
+    assert manager.update_task(a, "dependencies", b, "Alice")
+
+    success, err, cycle_path = append_list_property(manager, b, "dependencies", a, "Alice")
+    assert not success
+    assert err == "sakuraflow.msg.circular_dependency"
+    assert cycle_path == f"{b}->{a}({b}->{b})" or cycle_path == f"{b}->{a}->{b}({b}->{b})"
+
+
+def test_custom_scalar_and_enum_defaults_are_applied_on_create(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    assert manager.upsert_field_definition("owner_group", "scalar", default_value="ops")
+    assert manager.upsert_field_definition(
+        "machine_stage",
+        "enum",
+        default_value="mid",
+        enum_values=["early", "mid", "late"],
+    )
+
+    task_id = manager.add_task("Defaulted task", "Alice")
+    task = manager.get_task(task_id)
+
+    assert task is not None
+    assert task["custom"]["owner_group"] == "ops"
+    assert task["custom"]["machine_stage"] == "mid"
+    assert task["owner_group"] == "ops"
+    assert task["machine_stage"] == "mid"
+
+
+def test_list_definition_has_no_default_and_roundtrip_works(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    assert manager.upsert_field_definition("watchers", "list", default_value="ignored")
+    task_id = manager.add_task("List field test", "Alice")
+
+    task = manager.get_task(task_id)
+    assert task is not None
+    assert "watchers" not in task.get("custom", {})
+
+    assert manager.update_task(task_id, "watchers", "Steve", "Alice")
+    assert manager.search_tasks({"watchers": "Steve"}).get(task_id) is not None
+    assert manager.remove_item(task_id, "watchers", "Steve", "Alice")
+    assert manager.search_tasks({"watchers": "Steve"}) == {}
+
+
+def test_unknown_custom_field_is_rejected_until_registered(tmp_path):
+    db_path = tmp_path / "tasks.db"
+    manager = TodoManager(str(db_path))
+
+    task_id = manager.add_task("Unknown field test", "Alice")
+    assert not manager.update_task(task_id, "unregistered_key", "x", "Alice")
+
+    assert manager.upsert_field_definition("unregistered_key", "scalar", default_value="")
+    assert manager.update_task(task_id, "unregistered_key", "x", "Alice")
