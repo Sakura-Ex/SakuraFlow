@@ -24,6 +24,14 @@ _COMMANDS: List[HelpCommand] = [
 
 
 def get_help_commands(command_name: Optional[str] = None) -> List[HelpCommand]:
+    """Return the help commands that match an optional command name.
+
+    Args:
+        command_name: Optional command name or alias to filter by.
+
+    Returns:
+        A list of matching help command definitions.
+    """
     if command_name is None:
         return list(_COMMANDS)
     target = command_name.strip().lower()

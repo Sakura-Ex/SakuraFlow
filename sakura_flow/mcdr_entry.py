@@ -11,7 +11,14 @@ from .utils import Utils
 
 
 def _parse_search_criteria(query_raw: str) -> dict:
-    """Parse search query using shared alias dictionaries from constants."""
+    """Parse a free-form search query into structured criteria.
+
+    Args:
+        query_raw: Raw query text from the player or console.
+
+    Returns:
+        A dictionary of search criteria.
+    """
     criteria = {}
     list_field_map = {
         "collaborators": "collaborator",
@@ -48,6 +55,12 @@ def _parse_search_criteria(query_raw: str) -> dict:
 
 
 def register_mcdr_commands(server: PluginServerInterface, service: TodoApplication):
+    """Register the MCDR command tree and bind all callbacks.
+
+    Args:
+        server: MCDR plugin server interface.
+        service: Application facade used by command callbacks.
+    """
     # --- Command Callbacks ---
 
     def on_welcome(source: CommandSource):
@@ -120,22 +133,37 @@ def register_mcdr_commands(server: PluginServerInterface, service: TodoApplicati
             return
         source.reply(UI.render_task_info(tid, task, service.get_tasks(include_done=True), server))
 
+    def _reply_set_error(source: CommandSource, context: CommandContext, err: str):
+        if err == 'sakuraflow.msg.invalid_tier':
+            tier_list = Utils.list_to_rtext([Tier.get_rtext(t.value) for t in Tier])
+            source.reply(Utils.error_msg(server, err, len(GT_TIERS) - 1, tier_list))
+            return
+
+        if err == 'sakuraflow.msg.invalid_priority':
+            prio_list = Utils.list_to_rtext([Priority.get_rtext(p.value) for p in Priority])
+            source.reply(Utils.error_msg(server, err, prio_list))
+            return
+
+        if err == 'sakuraflow.msg.invalid_status':
+            status_list = Utils.list_to_rtext([Status.get_rtext(s.value) for s in Status])
+            source.reply(Utils.error_msg(server, err, status_list))
+            return
+
+        if err == 'sakuraflow.msg.invalid_enum_value':
+            field_def = service.get_field_definition(context.get('prop', '')) or {}
+            options = field_def.get('enum_values', [])
+            option_list = Utils.list_to_rtext([RText(str(item), color=RColor.aqua) for item in options])
+            source.reply(Utils.error_msg(server, err, context.get('prop'), option_list))
+            return
+
+        source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context.get('prop')))
+
     def on_set(source: CommandSource, context: CommandContext):
         editor = source.player if source.is_player else "Console"
         success, val, err = service.set_property(str(context['id']), context['prop'], context['value'], editor)
-        
+
         if not success:
-            if err == 'sakuraflow.msg.invalid_tier':
-                tier_list = Utils.list_to_rtext([Tier.get_rtext(t.value) for t in Tier])
-                source.reply(Utils.error_msg(server, err, len(GT_TIERS) - 1, tier_list))
-            elif err == 'sakuraflow.msg.invalid_priority':
-                prio_list = Utils.list_to_rtext([Priority.get_rtext(p.value) for p in Priority])
-                source.reply(Utils.error_msg(server, err, prio_list))
-            elif err == 'sakuraflow.msg.invalid_status':
-                status_list = Utils.list_to_rtext([Status.get_rtext(s.value) for s in Status])
-                source.reply(Utils.error_msg(server, err, status_list))
-            else:
-                source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context.get('prop')))
+            _reply_set_error(source, context, err)
             return
 
         # 成功后的 UI 反馈
@@ -147,7 +175,7 @@ def register_mcdr_commands(server: PluginServerInterface, service: TodoApplicati
         if Tier.validate(val): rval = Tier.get_rtext(val)
         elif Priority.validate(val): rval = Priority.get_rtext(val, server)
         elif Status.validate(val): rval = Status.get_rtext(val, server)
-        
+
         source.reply(Utils.info_msg(server, 'sakuraflow.msg.set_success', context['id'], context['prop'], rval))
 
     def on_append(source: CommandSource, context: CommandContext):

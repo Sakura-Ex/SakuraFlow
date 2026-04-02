@@ -9,6 +9,15 @@ from .utils import Utils, ItemizeBuilder
 class UI:
     @staticmethod
     def _prop_label(server: ServerInterface, key: str) -> str:
+        """Resolve a display label for a field key.
+
+        Args:
+            server: MCDR server interface used for translation.
+            key: Field key.
+
+        Returns:
+            A translated label if available, otherwise the raw key.
+        """
         if key in TASK_PROPERTIES or key in LIST_PROPERTIES:
             translated = server.tr(f"sakuraflow.prop.{key}")
             return translated if translated != f"sakuraflow.prop.{key}" else key
@@ -22,6 +31,18 @@ class UI:
             server: ServerInterface,
             enable_dep_hover: bool = True,
     ) -> list[dict]:
+        """Build the field specification list for a task.
+
+        Args:
+            tid: Task id string.
+            task: Task object to describe.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
+            enable_dep_hover: Whether dependency items should include hover info.
+
+        Returns:
+            A list of render specifications for task fields.
+        """
         deps = task.get("dependencies", [])
         dep_items = []
         for d_id in deps:
@@ -126,7 +147,16 @@ class UI:
 
     @staticmethod
     def make_dividing_line(content: str | RTextBase = "", width: int = 50, newline: bool = True) -> RTextBase:
-        """生成居中的标题分割线"""
+        """Render a centered divider line.
+
+        Args:
+            content: Optional centered content.
+            width: Total divider width.
+            newline: Whether to append a trailing newline.
+
+        Returns:
+            A formatted divider line.
+        """
         if not str(content):
             line = RText("=" * width, color=RColor.gold)
         else:
@@ -144,7 +174,17 @@ class UI:
 
     @staticmethod
     def create_hover_info(tid: str, task: dict, tasks_db: dict, server: ServerInterface) -> RTextBase:
-        """通用的任务悬浮矩阵生成器"""
+        """Render the hover text for a task.
+
+        Args:
+            tid: Task id string.
+            task: Task object to render.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
+
+        Returns:
+            Hover content as rich text.
+        """
         specs = UI._task_field_specs(tid, task, tasks_db, server, enable_dep_hover=False)
 
         latest_progress = server.tr('sakuraflow.ui.hover.waiting_record')
@@ -169,7 +209,18 @@ class UI:
 
     @staticmethod
     def render_task_line(tid: str, task: dict, tasks_db: dict, server: ServerInterface, source: CommandSource) -> RTextBase:
-        """渲染清单行"""
+        """Render a single line in the task list.
+
+        Args:
+            tid: Task id string.
+            task: Task object to render.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
+            source: Command source used for player-specific actions.
+
+        Returns:
+            A rich-text line for the task list.
+        """
         is_done = task.get("status") == Status.DONE.value
         hover_info = UI.create_hover_info(tid, task, tasks_db, server)
 
@@ -208,8 +259,19 @@ class UI:
     def _render_info_row(tid: str, label: str, value: RTextBase | str, cmd: str, server: ServerInterface,
                          is_list: bool = False,
                          value_color: RColor = RColor.white) -> RTextList:
-        """
-        [抽象方法] 渲染详情页中的一行交互式属性
+        """Render one interactive row in the task info view.
+
+        Args:
+            tid: Task id string.
+            label: Display label.
+            value: Display value.
+            cmd: Property key used in the suggested command.
+            server: MCDR server interface.
+            is_list: Whether the field is list-like.
+            value_color: Color used for plain string values.
+
+        Returns:
+            A rich-text row.
         """
         LABEL_COLOR = RColor.gray
         action_type = "append" if is_list else "set"
@@ -234,10 +296,17 @@ class UI:
 
     @staticmethod
     def render_task_info(tid: str, task: dict, tasks_db: dict, server: ServerInterface) -> RTextBase:
+        """Render the detailed task information panel.
+
+        Args:
+            tid: Task id string.
+            task: Task object to render.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
+
+        Returns:
+            Detailed task information as rich text.
         """
-        渲染详细的任务信息界面 (已通过 _render_info_row 重构)
-        """
-        # 日志内容构建
         notes_content = []
         if task.get("notes"):
             for n in task["notes"]:
@@ -279,7 +348,14 @@ class UI:
 
     @staticmethod
     def render_help(server: ServerInterface) -> RTextBase:
-        """构建帮助菜单"""
+        """Render the in-game help menu.
+
+        Args:
+            server: MCDR server interface.
+
+        Returns:
+            Help content as rich text.
+        """
 
         def help_line(cmd: str, desc: str, usage: str = "", full_desc: RTextBase | str = "",
                       abbr: str = "") -> RTextList:
@@ -373,7 +449,14 @@ class UI:
 
     @staticmethod
     def render_welcome(server: ServerInterface) -> RTextBase:
-        """渲染欢迎界面"""
+        """Render the welcome panel.
+
+        Args:
+            server: MCDR server interface.
+
+        Returns:
+            Welcome content as rich text.
+        """
         return RTextList(
             UI.make_dividing_line(server.tr('sakuraflow.welcome.header')),
             RText(f"{server.tr('sakuraflow.welcome.line1')}\n", color=RColor.white),
@@ -393,11 +476,19 @@ class UI:
     @staticmethod
     def render_paged_list(source: CommandSource, tasks: dict, all_tasks: dict, header_key: str, empty_key: str,
                           input_page: int = 1, cmd_prefix: str = "list"):
-        """
-        渲染分页列表
-        :param tasks: 要渲染的任务字典 {tid: task_data}
-        :param all_tasks: 全量任务字典，用于查找依赖任务信息
-        :param cmd_prefix: 翻页命令的前缀，例如 "search"
+        """Render a paged task list.
+
+        Args:
+            source: Command source that receives the rendered output.
+            tasks: Tasks to render on the current page.
+            all_tasks: Full task lookup table.
+            header_key: Translation key for the header.
+            empty_key: Translation key for the empty-state message.
+            input_page: Requested page number.
+            cmd_prefix: Command prefix used for paging actions.
+
+        Returns:
+            None.
         """
         server = source.get_server()
         page_size = PAGE_SIZE

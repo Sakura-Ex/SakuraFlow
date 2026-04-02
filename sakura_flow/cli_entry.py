@@ -2,11 +2,20 @@ import argparse
 import warnings
 
 from .application import TodoApplication
-from .enums import Status
+from .constants import PROP_ALIASES
+from .enums import Priority, Status, Tier
 from .help_core import render_cli
 
 
 def _parse_field_filters(field_args):
+    """Parse repeated ``--field key=value`` filters.
+
+    Args:
+        field_args: Raw ``--field`` arguments.
+
+    Returns:
+        A tuple of ``(criteria, error_message)``.
+    """
     criteria = {}
     if not field_args:
         return criteria, None
@@ -26,6 +35,11 @@ def _parse_field_filters(field_args):
 
 
 def register_cli_commands(parser: argparse.ArgumentParser):
+    """Register all CLI subcommands on the provided parser.
+
+    Args:
+        parser: Root argparse parser used by the CLI.
+    """
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     help_parser = subparsers.add_parser("help", help="Show unified command help")
@@ -100,7 +114,46 @@ def register_cli_commands(parser: argparse.ArgumentParser):
     dt_parser.add_argument("tier", help="Tier value")
 
 
+def _format_set_error(service: TodoApplication, prop: str, err: str) -> str:
+    """Format a human-readable error for ``set`` command failures.
+
+    Args:
+        service: Application facade used for enum lookup.
+        prop: Property name requested by the user.
+        err: Error key returned by the use case.
+
+    Returns:
+        A formatted error message.
+    """
+    real_prop = PROP_ALIASES.get(str(prop).lower()) or str(prop).strip()
+
+    if err == "sakuraflow.msg.invalid_tier":
+        return f"Error: invalid value for tier. options: {', '.join([member.value for member in Tier])}"
+
+    if err == "sakuraflow.msg.invalid_priority":
+        return f"Error: invalid value for priority. options: {', '.join([member.value for member in Priority])}"
+
+    if err == "sakuraflow.msg.invalid_status":
+        return f"Error: invalid value for status. options: {', '.join([member.value for member in Status])}"
+
+    if err == "sakuraflow.msg.invalid_enum_value":
+        definition = service.get_field_definition(real_prop) if hasattr(service, "get_field_definition") else None
+        options = definition.get("enum_values", []) if isinstance(definition, dict) else []
+        if options:
+            option_text = ", ".join([str(item) for item in options])
+            return f"Error: invalid value for {real_prop}. options: {option_text}"
+        return f"Error: invalid value for {real_prop}."
+
+    return f"Error: {err}"
+
+
 def handle_cli_command(args, service: TodoApplication):
+    """Execute a parsed CLI command.
+
+    Args:
+        args: Parsed argparse namespace.
+        service: Application facade used to execute the command.
+    """
     if args.command == "help":
         print(render_cli(getattr(args, "topic", None)))
 
@@ -182,7 +235,7 @@ def handle_cli_command(args, service: TodoApplication):
         if success:
             print(f"Set {args.prop} to {val}")
         else:
-            print(f"Error: {err}")
+            print(_format_set_error(service, args.prop, err))
 
     elif args.command == "append":
         success, err, error_detail = service.append_list_property(args.id, args.list_prop, args.value, args.editor)

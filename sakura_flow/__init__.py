@@ -11,7 +11,14 @@ from .mcdr_entry import register_mcdr_commands
 manager = None
 service = None
 
+
 def on_load(server: PluginServerInterface, _prev):
+    """Initialize the plugin, load custom fields, and register commands.
+
+    Args:
+        server: MCDR plugin server interface.
+        _prev: Previous plugin state provided by MCDR.
+    """
     global manager, service
     # 初始化管理器
     # 数据存放到 MCDR 根目录下的 sf_tasks 目录

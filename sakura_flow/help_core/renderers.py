@@ -4,6 +4,15 @@ from .models import HelpCommand
 
 
 def render_cli_help(commands: List[HelpCommand], command_prefix: str) -> str:
+    """Render a plain-text CLI help page.
+
+    Args:
+        commands: Help command definitions to render.
+        command_prefix: Command prefix to display in examples.
+
+    Returns:
+        A formatted help string.
+    """
     if not commands:
         return "No help topic found."
 
