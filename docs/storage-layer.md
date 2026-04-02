@@ -12,39 +12,38 @@
   - CLI：`__main__.py:main`
 
 `TodoManager` 初始化顺序（`sakura_flow/manager.py`）：
-1. `_init_db()`：建表 + 索引 + 老表兼容迁移
-2. `_ensure_default_tier_row()`：确保 `meta.default_tier`
-3. `_ensure_builtin_field_definitions()`：写入内建字段定义
+1. `_init_db()`：建表 + 索引
+2. `_ensure_builtin_field_definitions()`：写入/修正内建字段定义
 4. `_auto_migrate_legacy_json_if_needed()`：在 DB 为空时迁移 `tasks.json`
 
 ## 2. SQLite 表结构
 
 ### `meta`
 
-| 列名 | 类型 | 说明 |
-|---|---|---|
-| `key` | TEXT PK | 元数据键 |
+| 列名      | 类型            | 说明   |
+|---------|---------------|------|
+| `key`   | TEXT PK       | 元数据键 |
 | `value` | TEXT NOT NULL | 元数据值 |
 
 当前关键键：
-- `default_tier`
+- 当前实现未使用固定关键键（保留作扩展元数据容器）
 
 ---
 
 ### `tasks`
 
-| 列名 | 类型 | 说明 |
-|---|---|---|
-| `id` | INTEGER PK AUTOINCREMENT | 任务 ID |
-| `title` | TEXT NOT NULL | 标题 |
-| `creator` | TEXT NOT NULL | 创建者 |
-| `description` | TEXT NOT NULL DEFAULT '' | 描述 |
-| `status` | TEXT NOT NULL | 状态 |
-| `tier` | TEXT NOT NULL | 等级 |
-| `priority` | TEXT NOT NULL | 优先级 |
-| `created_at` | TEXT NOT NULL | 创建时间 |
-| `last_updated` | TEXT NOT NULL | 最近更新时间 |
-| `last_editor` | TEXT NOT NULL | 最近编辑者 |
+| 列名             | 类型                       | 说明     |
+|----------------|--------------------------|--------|
+| `id`           | INTEGER PK AUTOINCREMENT | 任务 ID  |
+| `title`        | TEXT NOT NULL            | 标题     |
+| `creator`      | TEXT NOT NULL            | 创建者    |
+| `description`  | TEXT NOT NULL DEFAULT '' | 描述     |
+| `status`       | TEXT NOT NULL            | 状态     |
+| `tier`         | TEXT NOT NULL            | 等级     |
+| `priority`     | TEXT NOT NULL            | 优先级    |
+| `created_at`   | TEXT NOT NULL            | 创建时间   |
+| `last_updated` | TEXT NOT NULL            | 最近更新时间 |
+| `last_editor`  | TEXT NOT NULL            | 最近编辑者  |
 
 ---
 
@@ -52,14 +51,14 @@
 
 用于定义“可写字段模型”（内建字段 + 自定义字段）。
 
-| 列名 | 类型 | 说明 |
-|---|---|---|
-| `key_name` | TEXT PK | 字段键名 |
-| `value_kind` | TEXT NOT NULL | `scalar`/`enum`/`list` |
-| `is_builtin` | INTEGER NOT NULL DEFAULT 0 | 是否内建字段 |
-| `is_required` | INTEGER NOT NULL DEFAULT 0 | 是否必填 |
-| `default_value` | TEXT NULL | 默认值（`list` 类型强制为 `NULL`） |
-| `enum_values` | TEXT NOT NULL DEFAULT '[]' | 枚举选项（JSON 字符串） |
+| 列名              | 类型                         | 说明                       |
+|-----------------|----------------------------|--------------------------|
+| `key_name`      | TEXT PK                    | 字段键名                     |
+| `value_kind`    | TEXT NOT NULL              | `scalar`/`enum`/`list`   |
+| `is_builtin`    | INTEGER NOT NULL DEFAULT 0 | 是否内建字段                   |
+| `is_required`   | INTEGER NOT NULL DEFAULT 0 | 是否必填                     |
+| `default_value` | TEXT NULL                  | 默认值（`list` 类型强制为 `NULL`） |
+| `enum_values`   | TEXT NOT NULL DEFAULT '[]' | 枚举选项（JSON 字符串，顺序即 0-based id） |
 
 内建字段（初始化写入）：
 - `description`(scalar)
@@ -76,11 +75,11 @@
 
 自定义标量/枚举值落盘表。
 
-| 列名 | 类型 | 说明 |
-|---|---|---|
-| `task_id` | INTEGER FK -> `tasks.id` | 任务 ID |
-| `key_name` | TEXT FK -> `field_definitions.key_name` | 字段键名 |
-| `value_text` | TEXT NOT NULL | 字段值 |
+| 列名           | 类型                                      | 说明    |
+|--------------|-----------------------------------------|-------|
+| `task_id`    | INTEGER FK -> `tasks.id`                | 任务 ID |
+| `key_name`   | TEXT FK -> `field_definitions.key_name` | 字段键名  |
+| `value_text` | TEXT NOT NULL                           | 字段值   |
 
 主键：`(task_id, key_name)`
 
@@ -90,11 +89,11 @@
 
 所有“列表字段”统一落盘（包括内建列表和自定义列表）。
 
-| 列名 | 类型 | 说明 |
-|---|---|---|
-| `task_id` | INTEGER FK -> `tasks.id` | 任务 ID |
-| `prop_key` | TEXT NOT NULL | 列表字段键名 |
-| `prop_value` | TEXT NOT NULL | 列表项值 |
+| 列名           | 类型                       | 说明     |
+|--------------|--------------------------|--------|
+| `task_id`    | INTEGER FK -> `tasks.id` | 任务 ID  |
+| `prop_key`   | TEXT NOT NULL            | 列表字段键名 |
+| `prop_value` | TEXT NOT NULL            | 列表项值   |
 
 主键：`(task_id, prop_key, prop_value)`
 
@@ -108,9 +107,9 @@
 
 任务依赖关系表（有向边：`task_id -> dependency_id`）。
 
-| 列名 | 类型 | 说明 |
-|---|---|---|
-| `task_id` | INTEGER FK -> `tasks.id` | 当前任务 |
+| 列名              | 类型                       | 说明   |
+|-----------------|--------------------------|------|
+| `task_id`       | INTEGER FK -> `tasks.id` | 当前任务 |
 | `dependency_id` | INTEGER FK -> `tasks.id` | 依赖任务 |
 
 主键：`(task_id, dependency_id)`
@@ -126,13 +125,13 @@
 
 任务进度记录。
 
-| 列名 | 类型 | 说明 |
-|---|---|---|
-| `id` | INTEGER PK AUTOINCREMENT | 记录 ID |
+| 列名        | 类型                       | 说明    |
+|-----------|--------------------------|-------|
+| `id`      | INTEGER PK AUTOINCREMENT | 记录 ID |
 | `task_id` | INTEGER FK -> `tasks.id` | 任务 ID |
-| `time` | TEXT NOT NULL | 时间 |
-| `author` | TEXT NOT NULL | 作者 |
-| `content` | TEXT NOT NULL | 内容 |
+| `time`    | TEXT NOT NULL            | 时间    |
+| `author`  | TEXT NOT NULL            | 作者    |
+| `content` | TEXT NOT NULL            | 内容    |
 
 ## 3. 索引
 
@@ -173,12 +172,18 @@
 补充：
 - `custom` 中的键会在组装时“平铺”到任务顶层（若不与核心键冲突）。
 - `dependencies` 会按数字语义排序。
+- 自定义字段会在任务组装时“补齐键”：
+  - 自定义 `scalar/enum` 缺失时补空字符串 `""`
+  - 自定义 `list` 缺失时补空列表 `[]`
 
 ## 5. 写入路径与字段归属
 
 - `add_task(...)`
   - 写入 `tasks`
-  - 按 `field_definitions` 的默认值写入 `task_custom_values`（仅 `scalar/enum`）
+  - 按 `field_definitions` 写入 `task_custom_values`（所有自定义 `scalar/enum` 字段都会初始化）
+  - `enum` 默认值策略：
+    - 若定义了合法默认值，使用该值
+    - 若未定义/无效，回退到枚举选项第 0 项
 - `update_task(task_id, key, value, editor)`
   - 核心标量键（`title/description/status/tier/priority`）更新 `tasks`
   - `dependencies` 走 `task_dependencies`
@@ -207,11 +212,7 @@
 
 ### 6.2 老表兼容迁移
 
-如果检测到历史表：
-- `task_collaborators`
-- `task_labels`
-
-会在初始化时把数据转存到 `task_list_items`。
+当前实现无旧 list 表自动迁移流程；已支持的兼容迁移入口为 `tasks.json -> sqlite`。
 
 ## 7. 自定义字段配置与约束
 
@@ -221,7 +222,13 @@
 - 字段名不能与核心字段冲突（如 `status`、`dependencies`）
 - 不能占用保留搜索键（如 `creator`、`label`）
 - 不能与内建别名冲突（`PROP_ALIASES`/`LIST_PROP_ALIASES`）
-- `enum` 必须有非空 `enum_values`
+- `enum` 必须有非空 `enum_values`；否则该字段会被忽略并给出 warning
+- `enum_values` 支持两种写法：
+  - 简写字符串：`[early, mid, late]`
+- 对象写法：`[{key: early, label: ...}, ...]`
+- 枚举内部持久化使用 `key`（字符串），`id` 仅由列表顺序派生（0-based）
+- 枚举 `id` 语义始终由配置顺序决定，配置对象里的显式 `id` 字段会被忽略
+- `enum default_value` 支持 key 或数字 id；未定义/无效时回退第 0 项
 - `list` 类型默认值会被清空（不支持默认列表）
 
 ## 8. 事务与一致性
