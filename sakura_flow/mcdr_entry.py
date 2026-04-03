@@ -1,13 +1,66 @@
+import warnings
+
 from mcdreforged.api.all import PluginServerInterface, CommandSource, CommandContext, RText, RColor, RStyle
 from mcdreforged.api.command import Literal, Integer, GreedyText, Text
 
-from .controller import TodoController
+from .application import TodoApplication
+from .constants import COMMAND_PREFIX, GT_TIERS, PROP_ALIASES, LIST_PROP_ALIASES
+from .enums import Status, Tier, Priority
 from .interface import UI
 from .utils import Utils
-from .constants import COMMAND_PREFIX, GT_TIERS
-from .enums import Status, Tier, Priority
 
-def register_mcdr_commands(server: PluginServerInterface, controller: TodoController):
+
+def _parse_search_criteria(query_raw: str) -> dict:
+    """Parse a free-form search query into structured criteria.
+
+    Args:
+        query_raw: Raw query text from the player or console.
+
+    Returns:
+        A dictionary of search criteria.
+    """
+    criteria = {}
+    list_field_map = {
+        "collaborators": "collaborator",
+        "labels": "label",
+    }
+
+    for part in query_raw.split():
+        if '=' in part:
+            key, val = part.split('=', 1)
+            key = key.lower()
+
+            scalar_prop = PROP_ALIASES.get(key)
+            if scalar_prop in {"title", "status", "tier", "priority"}:
+                criteria[scalar_prop] = val
+                continue
+
+            list_prop = LIST_PROP_ALIASES.get(key)
+            mapped_list = list_field_map.get(list_prop)
+            if mapped_list:
+                criteria[mapped_list] = val
+                continue
+
+            # creator is search-only and not part of set/append aliases.
+            if key == 'creator':
+                criteria['creator'] = val
+                continue
+
+            # Keep unknown keys for dynamic custom-field search.
+            criteria[key] = val
+        else:
+            criteria['title'] = part
+
+    return criteria
+
+
+def register_mcdr_commands(server: PluginServerInterface, service: TodoApplication):
+    """Register the MCDR command tree and bind all callbacks.
+
+    Args:
+        server: MCDR plugin server interface.
+        service: Application facade used by command callbacks.
+    """
     # --- Command Callbacks ---
 
     def on_welcome(source: CommandSource):
@@ -19,15 +72,17 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
     def on_list(source: CommandSource, context: CommandContext):
         page = context.get("page", 1)
         # 使用 search_tasks 获取非 Done 任务
-        tasks = controller.search_tasks({'status': '!Done'})
-        UI.render_paged_list(source, tasks, controller.manager, 'sakuraflow.list.header', 'sakuraflow.list.empty', 
+        tasks = service.search_tasks({'status': '!Done'})
+        UI.render_paged_list(source, tasks, service.get_tasks(include_done=True), 'sakuraflow.list.header',
+                             'sakuraflow.list.empty',
                              input_page=page, cmd_prefix="list")
 
     def on_archive(source: CommandSource, context: CommandContext):
         page = context.get("page", 1)
         # 使用 search_tasks 获取 Done 任务
-        tasks = controller.search_tasks({'status': 'Done'})
-        UI.render_paged_list(source, tasks, controller.manager, 'sakuraflow.archive.header', 'sakuraflow.archive.empty', 
+        tasks = service.search_tasks({'status': 'Done'})
+        UI.render_paged_list(source, tasks, service.get_tasks(include_done=True), 'sakuraflow.archive.header',
+                             'sakuraflow.archive.empty',
                              input_page=page, cmd_prefix="archive")
 
     def on_search(source: CommandSource, context: CommandContext):
@@ -45,98 +100,100 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
         
         if is_page:
             # 尝试从缓存获取
-            results = controller.get_cached_search(player_key)
+            results = service.get_cached_search(player_key)
             if results is None:
                 # 缓存过期或不存在，提示用户重新搜索
                 source.reply(Utils.error_msg(server, 'sakuraflow.search.cache_expired'))
                 return
         else:
             # 执行新搜索
-            # 解析复合查询
-            # 示例: "c=playerA s=!Done title=机器"
-            criteria = {}
-            parts = query_raw.split()
-            
-            for part in parts:
-                if '=' in part:
-                    key, val = part.split('=', 1)
-                    key = key.lower()
-                    
-                    # 映射简写
-                    if key in ['t', 'title']: criteria['title'] = val
-                    elif key in ['s', 'stat', 'status']: criteria['status'] = val
-                    elif key in ['tier']: criteria['tier'] = val
-                    elif key in ['p', 'prio', 'priority']: criteria['priority'] = val
-                    elif key in ['c', 'creator']: criteria['creator'] = val
-                    elif key in ['collab', 'collaborator']: criteria['collaborator'] = val
-                    elif key in ['l', 'label']: criteria['label'] = val
-                    # 可以添加更多映射
-                else:
-                    # 如果没有等号，默认视为标题搜索
-                    # 如果已经有标题搜索条件了，可以追加还是覆盖？
-                    # 简单起见，覆盖或者作为补充。这里假设用户只输入一个标题关键词。
-                    criteria['title'] = part
+            criteria = _parse_search_criteria(query_raw)
 
             # 执行搜索并缓存
-            results = controller.search_tasks(criteria, cache_key=player_key)
+            results = service.search_tasks(criteria, cache_key=player_key)
             page = 1 # 新搜索重置为第一页
 
         # 渲染搜索结果
-        UI.render_paged_list(source, results, controller.manager, 'sakuraflow.search.header', 'sakuraflow.search.empty', 
+        UI.render_paged_list(source, results, service.get_tasks(include_done=True), 'sakuraflow.search.header',
+                             'sakuraflow.search.empty',
                              input_page=page, cmd_prefix="search")
 
 
     def on_add(source: CommandSource, context: CommandContext):
         creator = source.player if source.is_player else "Console"
-        tid = controller.add_task(context['title'], creator)
+        tid = service.add_task(context['title'], creator)
         tid_text = RText(f"#{tid}", color=RColor.green, styles=RStyle.bold)
         source.reply(Utils.info_msg(server, 'sakuraflow.msg.add_success', tid_text))
 
     def on_info(source: CommandSource, context: CommandContext):
         tid = str(context['id'])
-        task = controller.get_task(tid)
+        task = service.get_task(tid)
         if not task:
             source.reply(Utils.error_msg(server, 'sakuraflow.msg.not_found'))
             return
-        source.reply(UI.render_task_info(tid, task, controller.manager.data["tasks"], server))
+        source.reply(UI.render_task_info(tid, task, service.get_tasks(include_done=True), server))
+
+    def _reply_set_error(source: CommandSource, context: CommandContext, err: str):
+        if err == 'sakuraflow.msg.invalid_tier':
+            tier_list = Utils.list_to_rtext([Tier.get_rtext(t.value) for t in Tier])
+            source.reply(Utils.error_msg(server, err, len(GT_TIERS) - 1, tier_list))
+            return
+
+        if err == 'sakuraflow.msg.invalid_priority':
+            prio_list = Utils.list_to_rtext([Priority.get_rtext(p.value) for p in Priority])
+            source.reply(Utils.error_msg(server, err, prio_list))
+            return
+
+        if err == 'sakuraflow.msg.invalid_status':
+            status_list = Utils.list_to_rtext([Status.get_rtext(s.value) for s in Status])
+            source.reply(Utils.error_msg(server, err, status_list))
+            return
+
+        if err == 'sakuraflow.msg.invalid_enum_value':
+            field_def = service.get_field_definition(context.get('prop', '')) or {}
+            options = field_def.get('enum_values', [])
+            option_list = Utils.list_to_rtext([RText(str(item), color=RColor.aqua) for item in options])
+            source.reply(Utils.error_msg(server, err, context.get('prop'), option_list))
+            return
+
+        source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context.get('prop')))
 
     def on_set(source: CommandSource, context: CommandContext):
         editor = source.player if source.is_player else "Console"
-        success, val, err = controller.set_property(str(context['id']), context['prop'], context['value'], editor)
-        
+        success, val, err = service.set_property(str(context['id']), context['prop'], context['value'], editor)
+
         if not success:
-            if err == 'sakuraflow.msg.invalid_tier':
-                tier_list = Utils.list_to_rtext([Tier.get_rtext(t.value) for t in Tier])
-                source.reply(Utils.error_msg(server, err, len(GT_TIERS) - 1, tier_list))
-            elif err == 'sakuraflow.msg.invalid_priority':
-                prio_list = Utils.list_to_rtext([Priority.get_rtext(p.value) for p in Priority])
-                source.reply(Utils.error_msg(server, err, prio_list))
-            elif err == 'sakuraflow.msg.invalid_status':
-                status_list = Utils.list_to_rtext([Status.get_rtext(s.value) for s in Status])
-                source.reply(Utils.error_msg(server, err, status_list))
-            else:
-                source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context.get('prop')))
+            _reply_set_error(source, context, err)
             return
 
         # 成功后的 UI 反馈
-        # 需要重新获取 real_prop 对应的显示文本，这里稍微有点 hack，因为 controller 已经处理了逻辑
-        # 简单起见，我们直接用 context['prop'] 作为显示，或者让 controller 返回 real_prop
+        # 需要重新获取 real_prop 对应的显示文本，这里稍微有点 hack，因为服务层已经处理了逻辑
+        # 简单起见，我们直接用 context['prop'] 作为显示，或者让服务层返回 real_prop
         # 为了更好的体验，这里简单处理：
         rval = RText(val)
         # 尝试美化显示
         if Tier.validate(val): rval = Tier.get_rtext(val)
         elif Priority.validate(val): rval = Priority.get_rtext(val, server)
         elif Status.validate(val): rval = Status.get_rtext(val, server)
-        
+
         source.reply(Utils.info_msg(server, 'sakuraflow.msg.set_success', context['id'], context['prop'], rval))
 
     def on_append(source: CommandSource, context: CommandContext):
         editor = source.player if source.is_player else "Console"
-        success, err = controller.append_list_property(str(context['id']), context['list_prop'], str(context['value']), editor)
+        success, err, error_detail = service.append_list_property(
+            str(context['id']),
+            context['list_prop'],
+            str(context['value']),
+            editor,
+        )
         
         if not success:
             if err == 'sakuraflow.msg.dep_not_found':
                 source.reply(Utils.error_msg(server, err, context['value']))
+            elif err == 'sakuraflow.msg.self_dependency':
+                source.reply(Utils.error_msg(server, err, context['id']))
+            elif err == 'sakuraflow.msg.circular_dependency':
+                source.reply(Utils.error_msg(server, err, error_detail or context['value']))
             else:
                 source.reply(Utils.error_msg(server, err or 'sakuraflow.msg.unknown_error', context['list_prop']))
             return
@@ -145,7 +202,8 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
 
     def on_remove(source: CommandSource, context: CommandContext):
         editor = source.player if source.is_player else "Console"
-        success, err = controller.remove_list_property(str(context['id']), context['list_prop'], str(context['value']), editor)
+        success, err = service.remove_list_property(str(context['id']), context['list_prop'], str(context['value']),
+                                                    editor)
         
         if not success:
              source.reply(Utils.error_msg(server, 'sakuraflow.msg.remove_failed', context['value']))
@@ -155,16 +213,21 @@ def register_mcdr_commands(server: PluginServerInterface, controller: TodoContro
 
     def on_note(source: CommandSource, context: CommandContext):
         author = source.player if source.is_player else "Console"
-        if controller.add_note(str(context['id']), context['content'], author):
+        if service.add_note(str(context['id']), context['content'], author):
             source.reply(Utils.info_msg(server, 'sakuraflow.msg.note_success', context['id']))
 
     def on_status_change(source: CommandSource, context: CommandContext, status: Status, msg_key: str):
         editor = source.player if source.is_player else "Console"
-        if controller.update_status(str(context['id']), status, editor):
+        if service.update_status(str(context['id']), status, editor):
             source.reply(Utils.info_msg(server, msg_key, context['id']))
 
     def on_default_tier(source: CommandSource, context: CommandContext):
-        if controller.set_default_tier(context['tier']):
+        warnings.warn(
+            "!!todo default_tier is deprecated; use field-definition defaults.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if service.set_default_tier(context['tier']):
              source.reply(Utils.info_msg(server, 'sakuraflow.msg.default_tier_success', context['tier']))
         else:
              tier_list = Utils.list_to_rtext([Tier.get_rtext(t.value) for t in Tier])

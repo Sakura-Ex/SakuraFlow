@@ -12,6 +12,7 @@
   "resources": [
     "lang",
     "__main__.py",
-    "LICENSE"
+    "LICENSE",
+    "requirements.txt"
   ]
 }

@@ -1,15 +1,162 @@
 from mcdreforged.api.all import RTextBase, RText, RColor, RTextList, ServerInterface, CommandSource, RAction, RStyle
 
-from . import TodoManager
 from .constants import COMMAND_PREFIX, PAGE_SIZE, TASK_PROPERTIES, LIST_PROPERTIES, COLON
 from .enums import Status, Tier, Priority
+from .help_core import get_commands
 from .utils import Utils, ItemizeBuilder
 
 
 class UI:
     @staticmethod
+    def _prop_label(server: ServerInterface, key: str) -> str:
+        """Resolve a display label for a field key.
+
+        Args:
+            server: MCDR server interface used for translation.
+            key: Field key.
+
+        Returns:
+            A translated label if available, otherwise the raw key.
+        """
+        if key in TASK_PROPERTIES or key in LIST_PROPERTIES:
+            translated = server.tr(f"sakuraflow.prop.{key}")
+            return translated if translated != f"sakuraflow.prop.{key}" else key
+        return key
+
+    @staticmethod
+    def _task_field_specs(
+            tid: str,
+            task: dict,
+            tasks_db: dict,
+            server: ServerInterface,
+            enable_dep_hover: bool = True,
+    ) -> list[dict]:
+        """Build the field specification list for a task.
+
+        Args:
+            tid: Task id string.
+            task: Task object to describe.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
+            enable_dep_hover: Whether dependency items should include hover info.
+
+        Returns:
+            A list of render specifications for task fields.
+        """
+        deps = task.get("dependencies", [])
+        dep_items = []
+        for d_id in deps:
+            if str(d_id) == str(tid):
+                dep_items.append(RText(f"#{d_id}{server.tr('sakuraflow.ui.info.invalid_dep')}", color=RColor.red))
+                continue
+            d_task = tasks_db.get(str(d_id))
+            if d_task:
+                is_d_done = d_task.get("status") == Status.DONE.value
+                color = RColor.green if is_d_done else RColor.red
+                symbol = "✔" if is_d_done else "✘"
+
+                dep_item = RTextList(symbol, RText(f"#{d_id}")).set_color(color)
+                if enable_dep_hover:
+                    dep_hover = UI.create_hover_info(str(d_id), d_task, tasks_db, server)
+                    dep_item.h(dep_hover)
+                dep_item.c(RAction.suggest_command, f"{COMMAND_PREFIX} info {d_id}")
+                dep_items.append(dep_item)
+            else:
+                dep_items.append(RText(f"#{d_id}{server.tr('sakuraflow.ui.info.invalid_dep')}", color=RColor.red))
+
+        custom_scalars = task.get("custom", {}) or {}
+        custom_lists = task.get("custom_lists", {}) or {}
+
+        specs = [
+            {
+                "key": "status",
+                "label": UI._prop_label(server, "status"),
+                "value": Status.get_rtext(task.get("status", "Unknown"), server),
+                "is_list": False,
+                "value_color": Status.get_color(task.get("status", "Unknown")),
+            },
+            {
+                "key": "tier",
+                "label": UI._prop_label(server, "tier"),
+                "value": Tier.get_rtext(task.get("tier", "ULV")),
+                "is_list": False,
+                "value_color": Tier.get_color(task.get("tier", "ULV")),
+            },
+            {
+                "key": "priority",
+                "label": UI._prop_label(server, "priority"),
+                "value": Priority.get_rtext(task.get("priority", "Medium"), server),
+                "is_list": False,
+                "value_color": Priority.get_color(task.get("priority", "Medium")),
+            },
+            {
+                "key": "description",
+                "label": UI._prop_label(server, "description"),
+                "value": task.get("description", server.tr('sakuraflow.ui.info.no_desc')) or server.tr(
+                    'sakuraflow.ui.info.no_desc'),
+                "is_list": False,
+                "value_color": RColor.white,
+            },
+            {
+                "key": "collaborators",
+                "label": UI._prop_label(server, "collaborators"),
+                "value": Utils.list_to_rtext(task.get('collaborators', [])) if task.get('collaborators') else server.tr(
+                    'sakuraflow.common.unassigned'),
+                "is_list": True,
+                "value_color": RColor.white,
+            },
+            {
+                "key": "dependencies",
+                "label": UI._prop_label(server, "dependencies"),
+                "value": Utils.list_to_rtext(dep_items) if dep_items else RText(server.tr('sakuraflow.common.none'),
+                                                                                color=RColor.gray),
+                "is_list": True,
+                "value_color": RColor.white,
+            },
+            {
+                "key": "labels",
+                "label": UI._prop_label(server, "labels"),
+                "value": Utils.list_to_rtext(task.get('labels', [])) if task.get('labels') else RText(
+                    server.tr('sakuraflow.common.none'), color=RColor.gray),
+                "is_list": True,
+                "value_color": RColor.white,
+            },
+        ]
+
+        for key in sorted(custom_scalars.keys()):
+            specs.append({
+                "key": key,
+                "label": UI._prop_label(server, key),
+                "value": custom_scalars[key],
+                "is_list": False,
+                "value_color": RColor.white,
+            })
+
+        for key in sorted(custom_lists.keys()):
+            values = custom_lists.get(key, [])
+            specs.append({
+                "key": key,
+                "label": UI._prop_label(server, key),
+                "value": Utils.list_to_rtext(values) if values else RText(server.tr('sakuraflow.common.none'),
+                                                                          color=RColor.gray),
+                "is_list": True,
+                "value_color": RColor.white,
+            })
+
+        return specs
+
+    @staticmethod
     def make_dividing_line(content: str | RTextBase = "", width: int = 50, newline: bool = True) -> RTextBase:
-        """生成居中的标题分割线"""
+        """Render a centered divider line.
+
+        Args:
+            content: Optional centered content.
+            width: Total divider width.
+            newline: Whether to append a trailing newline.
+
+        Returns:
+            A formatted divider line.
+        """
         if not str(content):
             line = RText("=" * width, color=RColor.gold)
         else:
@@ -27,45 +174,53 @@ class UI:
 
     @staticmethod
     def create_hover_info(tid: str, task: dict, tasks_db: dict, server: ServerInterface) -> RTextBase:
-        """通用的任务悬浮矩阵生成器"""
-        dep_display = []
-        for d_id in task.get("dependencies", []):
-            d_task = tasks_db.get(str(d_id))
-            is_d_done = d_task and d_task.get("status") == Status.DONE.value
+        """Render the hover text for a task.
 
-            color = RColor.green if is_d_done else RColor.red
-            symbol = "✔" if is_d_done else "✘"
+        Args:
+            tid: Task id string.
+            task: Task object to render.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
 
-            dep_display.append(RTextList(symbol, RText(f"#{d_id}")).set_color(color))
+        Returns:
+            Hover content as rich text.
+        """
+        specs = UI._task_field_specs(tid, task, tasks_db, server, enable_dep_hover=False)
 
-        tier = task.get('tier', 'ULV')
-        prio = task.get('priority', 'Medium')
-
-        collabs = task.get('collaborators', [])
-        collab_text = Utils.list_to_rtext(collabs) if collabs else server.tr('sakuraflow.common.unassigned')
+        latest_progress = server.tr('sakuraflow.ui.hover.waiting_record')
+        if task.get('notes'):
+            latest_progress = task['notes'][-1]['content']
 
         return RTextList(
             RText(f"{server.tr('sakuraflow.common.task')}: {task['title']}\n", color=RColor.yellow),
             RText(f"{server.tr('sakuraflow.common.creator')}: {task.get('creator', server.tr('sakuraflow.common.unknown'))}\n",
                   color=RColor.gray),
-            RText(f"{server.tr('sakuraflow.common.tier')}: ", color=RColor.gray),
-            Tier.get_rtext(tier), "\n",
-            RText(f"{server.tr('sakuraflow.common.priority')}: ", color=RColor.gray),
-            Priority.get_rtext(prio, server), "\n",
-            RText(f"{server.tr('sakuraflow.common.collaborators')}: ", color=RColor.gray), collab_text, "\n",
-            RText(f"{server.tr('sakuraflow.common.dependencies')}: ", color=RColor.gray),
-            Utils.list_to_rtext(dep_display) if dep_display else RText(server.tr('sakuraflow.common.none'),
-                                                                       color=RColor.gray),
-            "\n",
+            *[
+                RTextList(
+                    RText(f"{spec['label']}: ", color=RColor.gray),
+                    spec['value'],
+                    "\n",
+                )
+                for spec in specs
+            ],
             RText("-" * 25 + "\n"),
-            RText(
-                f"{server.tr('sakuraflow.ui.hover.latest_progress')}: {task['notes'][-1]['content'] if task.get('notes') else server.tr('sakuraflow.ui.hover.waiting_record')}",
-                color=RColor.gray)
+            RText(f"{server.tr('sakuraflow.ui.hover.latest_progress')}: {latest_progress}", color=RColor.gray)
         )
 
     @staticmethod
     def render_task_line(tid: str, task: dict, tasks_db: dict, server: ServerInterface, source: CommandSource) -> RTextBase:
-        """渲染清单行"""
+        """Render a single line in the task list.
+
+        Args:
+            tid: Task id string.
+            task: Task object to render.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
+            source: Command source used for player-specific actions.
+
+        Returns:
+            A rich-text line for the task list.
+        """
         is_done = task.get("status") == Status.DONE.value
         hover_info = UI.create_hover_info(tid, task, tasks_db, server)
 
@@ -104,8 +259,19 @@ class UI:
     def _render_info_row(tid: str, label: str, value: RTextBase | str, cmd: str, server: ServerInterface,
                          is_list: bool = False,
                          value_color: RColor = RColor.white) -> RTextList:
-        """
-        [抽象方法] 渲染详情页中的一行交互式属性
+        """Render one interactive row in the task info view.
+
+        Args:
+            tid: Task id string.
+            label: Display label.
+            value: Display value.
+            cmd: Property key used in the suggested command.
+            server: MCDR server interface.
+            is_list: Whether the field is list-like.
+            value_color: Color used for plain string values.
+
+        Returns:
+            A rich-text row.
         """
         LABEL_COLOR = RColor.gray
         action_type = "append" if is_list else "set"
@@ -130,34 +296,17 @@ class UI:
 
     @staticmethod
     def render_task_info(tid: str, task: dict, tasks_db: dict, server: ServerInterface) -> RTextBase:
-        """
-        渲染详细的任务信息界面 (已通过 _render_info_row 重构)
-        """
-        # 依赖列表特殊渲染逻辑
-        deps = task.get("dependencies", [])
-        if not deps:
-            dep_list = RText(server.tr('sakuraflow.common.none'), color=RColor.gray)
-        else:
-            dep_items = []
-            for d_id in deps:
-                d_task = tasks_db.get(str(d_id))
-                if d_task:
-                    is_d_done = d_task.get("status") == Status.DONE.value
-                    color = RColor.green if is_d_done else RColor.red
-                    symbol = "✔" if is_d_done else "✘"
+        """Render the detailed task information panel.
 
-                    d_hover = UI.create_hover_info(str(d_id), d_task, tasks_db, server)
-                    dep_items.append(
-                        RTextList(symbol, RText(f"#{d_id}"))
-                        .set_color(color)
-                        .h(d_hover)
-                        .c(RAction.suggest_command, f"{COMMAND_PREFIX} info {d_id}")
-                    )
-                else:
-                    dep_items.append(RText(f"#{d_id}{server.tr('sakuraflow.ui.info.invalid_dep')}", color=RColor.red))
-            dep_list = Utils.list_to_rtext(dep_items)
+        Args:
+            tid: Task id string.
+            task: Task object to render.
+            tasks_db: Full task lookup table.
+            server: MCDR server interface.
 
-        # 日志内容构建
+        Returns:
+            Detailed task information as rich text.
+        """
         notes_content = []
         if task.get("notes"):
             for n in task["notes"]:
@@ -170,30 +319,26 @@ class UI:
         else:
             notes_content.append(RText(f" {server.tr('sakuraflow.ui.info.no_records')}\n", color=RColor.dark_gray))
 
-        collabs = task.get('collaborators', [])
-        collab_val = Utils.list_to_rtext(collabs) if collabs else server.tr('sakuraflow.common.unassigned')
-
-        description = task.get('description', '')
-        if not description:
-            description = server.tr('sakuraflow.ui.info.no_desc')
+        dynamic_rows = RTextList()
+        for spec in UI._task_field_specs(tid, task, tasks_db, server):
+            dynamic_rows.append(
+                UI._render_info_row(
+                    tid,
+                    spec["label"],
+                    spec["value"],
+                    spec["key"],
+                    server,
+                    is_list=spec["is_list"],
+                    value_color=spec["value_color"],
+                )
+            )
 
         return RTextList(
             UI.make_dividing_line(server.tr('sakuraflow.ui.info.header', tid)),
             UI._render_info_row(tid, server.tr('sakuraflow.common.title'), task['title'], "title", server),
             RText(f"{server.tr('sakuraflow.common.creator')}: ", color=RColor.gray),
             RText(f"{task.get('creator', server.tr('sakuraflow.common.unknown'))}\n", color=RColor.white),
-            UI._render_info_row(tid, server.tr('sakuraflow.common.status'), Status.get_rtext(task['status'], server),
-                                "status", server, value_color=Status.get_color(task['status'])),
-            UI._render_info_row(tid, server.tr('sakuraflow.common.tier'), Tier.get_rtext(task['tier']),
-                                "tier", server, value_color=Tier.get_color(task['tier'])),
-            UI._render_info_row(tid, server.tr('sakuraflow.common.priority'), Priority.get_rtext(task['priority'], server),
-                                "priority", server, value_color=Priority.get_color(task['priority'])),
-            UI._render_info_row(tid, server.tr('sakuraflow.common.collaborators'), collab_val, "collaborators", server,
-                                is_list=True),
-            UI._render_info_row(tid, server.tr('sakuraflow.common.dependencies'), dep_list, "dependency", server,
-                                is_list=True),
-            UI._render_info_row(tid, server.tr('sakuraflow.common.description'),
-                                description, "description", server),
+            dynamic_rows,
 
             RText("-" * 35 + "\n", color=RColor.dark_gray),
             RText(f"{server.tr('sakuraflow.ui.info.progress_header')}\n", color=RColor.gold),
@@ -203,7 +348,14 @@ class UI:
 
     @staticmethod
     def render_help(server: ServerInterface) -> RTextBase:
-        """构建帮助菜单"""
+        """Render the in-game help menu.
+
+        Args:
+            server: MCDR server interface.
+
+        Returns:
+            Help content as rich text.
+        """
 
         def help_line(cmd: str, desc: str, usage: str = "", full_desc: RTextBase | str = "",
                       abbr: str = "") -> RTextList:
@@ -267,35 +419,44 @@ class UI:
             build_props_info('sakuraflow.help.available_lists', LIST_PROPERTIES)
         )
 
-        return RTextList(
+        content = RTextList(
             UI.make_dividing_line(server.tr('sakuraflow.help.header')),
             RText(f"{server.tr('sakuraflow.help.hint')}\n", color=RColor.gray, styles=RStyle.italic),
-
-            help_line("list", server.tr('sakuraflow.help.list'), usage="", abbr="l"),
-            help_line("archive", server.tr('sakuraflow.help.archive'), usage="", abbr="ar"),
-            help_line("search", server.tr('sakuraflow.help.search'), usage="<query>", abbr="find"),
-            help_line("add", server.tr('sakuraflow.help.add'), usage="<title>", abbr="a"),
-            help_line("info", server.tr('sakuraflow.help.info'), usage="<id>", abbr="i"),
-            help_line("note", server.tr('sakuraflow.help.note'), usage="<id> <content>", abbr="n"),
-            help_line("set", server.tr('sakuraflow.help.set'), usage="<id> <prop> <value>", full_desc=properties_info,
-                      abbr="s"),
-            help_line("append", server.tr('sakuraflow.help.append'), usage="<id> <list> <value>",
-                      full_desc=list_properties_info,
-                      abbr="ap"),
-            help_line("remove", server.tr('sakuraflow.help.remove'), usage="<id> <list> <value>",
-                      full_desc=list_properties_info,
-                      abbr="rm"),
-            help_line("pause", server.tr('sakuraflow.help.pause'), usage="<id>"),
-            help_line("resume", server.tr('sakuraflow.help.resume'), usage="<id>"),
-            help_line("complete", server.tr('sakuraflow.help.complete'), usage="<id>"),
-            help_line("restore", server.tr('sakuraflow.help.restore'), usage="<id>"),
-
-            UI.make_dividing_line(newline=False)
         )
+
+        for command in get_commands():
+            if command.name == "default_tier":
+                continue
+
+            full_desc = ""
+            if command.detail_kind == "set_props":
+                full_desc = properties_info
+            elif command.detail_kind == "list_props":
+                full_desc = list_properties_info
+
+            content.append(
+                help_line(
+                    command.name,
+                    server.tr(command.tr_key),
+                    usage=command.usage,
+                    full_desc=full_desc,
+                    abbr=command.alias or "",
+                )
+            )
+
+        content.append(UI.make_dividing_line(newline=False))
+        return content
 
     @staticmethod
     def render_welcome(server: ServerInterface) -> RTextBase:
-        """渲染欢迎界面"""
+        """Render the welcome panel.
+
+        Args:
+            server: MCDR server interface.
+
+        Returns:
+            Welcome content as rich text.
+        """
         return RTextList(
             UI.make_dividing_line(server.tr('sakuraflow.welcome.header')),
             RText(f"{server.tr('sakuraflow.welcome.line1')}\n", color=RColor.white),
@@ -313,13 +474,21 @@ class UI:
         )
 
     @staticmethod
-    def render_paged_list(source: CommandSource, tasks: dict, manager: TodoManager, header_key: str, empty_key: str, 
+    def render_paged_list(source: CommandSource, tasks: dict, all_tasks: dict, header_key: str, empty_key: str,
                           input_page: int = 1, cmd_prefix: str = "list"):
-        """
-        渲染分页列表
-        :param tasks: 要渲染的任务字典 {tid: task_data}
-        :param manager: TodoManager 实例，用于查找依赖任务信息
-        :param cmd_prefix: 翻页命令的前缀，例如 "search"
+        """Render a paged task list.
+
+        Args:
+            source: Command source that receives the rendered output.
+            tasks: Tasks to render on the current page.
+            all_tasks: Full task lookup table.
+            header_key: Translation key for the header.
+            empty_key: Translation key for the empty-state message.
+            input_page: Requested page number.
+            cmd_prefix: Command prefix used for paging actions.
+
+        Returns:
+            None.
         """
         server = source.get_server()
         page_size = PAGE_SIZE
@@ -350,7 +519,7 @@ class UI:
         source.reply(UI.make_dividing_line(server.tr(header_key), newline=False))
 
         for tid, task in filtered_tasks[start_index:end_index]:
-            source.reply(UI.render_task_line(tid, task, manager.data["tasks"], server, source))
+            source.reply(UI.render_task_line(tid, task, all_tasks, server, source))
 
         # 底部显示页码和翻页按钮
         footer = RTextList()

@@ -1,0 +1,49 @@
+# Sakura Flow custom fields config
+#
+# This file only defines CUSTOM fields.
+# Core fields are fixed in code and cannot be overridden here:
+#   title, description, status, tier, priority,
+#   collaborators, labels, dependencies
+#
+# Notes:
+# - value_kind supports: scalar | enum | list
+# - list fields do not support default_value
+# - enum fields must define enum_values/options
+# - key_name is case-insensitive and stored as lowercase
+# - enum option order is the canonical 0-based id order
+
+version: 1
+
+custom_fields: [ ]
+  # Uncomment this block and replace values to enable custom fields.
+  # custom_fields:
+  # Example 1: enum field with default value
+  # - key_name: machine_stage
+  #   value_kind: enum
+  #   is_required: false
+  #   default_value: mid
+  #   enum_values:
+  #     - early
+  #     - mid
+  #     - late
+
+  # Example 1b: enum options with explicit key/label metadata
+  # - key_name: machine_stage
+  #   value_kind: enum
+  #   default_value: mid
+  #   enum_values:
+  #     - key: early
+  #       label: Early Phase
+  #     - key: mid
+  #       label: Mid Phase
+
+  # Example 2: scalar field
+  # - key_name: owner_group
+  #   value_kind: scalar
+  #   is_required: false
+  #   default_value: ops
+
+  # Example 3: list field (default_value will be ignored)
+  # - key_name: watchers
+  #   value_kind: list
+#   is_required: false

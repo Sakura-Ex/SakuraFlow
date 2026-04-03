@@ -1,9 +1,49 @@
 import argparse
-from .controller import TodoController
-from .enums import Status
+import warnings
+
+from .application import TodoApplication
+from .constants import PROP_ALIASES
+from .enums import Priority, Status, Tier
+from .help_core import render_cli
+
+
+def _parse_field_filters(field_args):
+    """Parse repeated ``--field key=value`` filters.
+
+    Args:
+        field_args: Raw ``--field`` arguments.
+
+    Returns:
+        A tuple of ``(criteria, error_message)``.
+    """
+    criteria = {}
+    if not field_args:
+        return criteria, None
+
+    for raw in field_args:
+        if "=" not in raw:
+            return {}, f"Invalid --field value '{raw}', expected key=value"
+        key, val = raw.split("=", 1)
+        key = key.strip().lower()
+        val = val.strip()
+        if not key:
+            return {}, f"Invalid --field value '{raw}', key is empty"
+        if not val:
+            return {}, f"Invalid --field value '{raw}', value is empty"
+        criteria[key] = val
+    return criteria, None
+
 
 def register_cli_commands(parser: argparse.ArgumentParser):
+    """Register all CLI subcommands on the provided parser.
+
+    Args:
+        parser: Root argparse parser used by the CLI.
+    """
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    help_parser = subparsers.add_parser("help", help="Show unified command help")
+    help_parser.add_argument("topic", nargs="?", help="Command name or alias")
 
     # Add
     add_parser = subparsers.add_parser("add", help="Add a new task")
@@ -22,6 +62,8 @@ def register_cli_commands(parser: argparse.ArgumentParser):
     list_parser.add_argument("--creator", help="Filter by creator")
     list_parser.add_argument("--collab", help="Filter by collaborator")
     list_parser.add_argument("--label", help="Filter by label")
+    list_parser.add_argument("--field", action="append", default=[],
+                             help="Filter by custom field, e.g. --field machine_stage=mid")
 
     # Info
     info_parser = subparsers.add_parser("info", help="Show task details")
@@ -68,12 +110,55 @@ def register_cli_commands(parser: argparse.ArgumentParser):
     restore_parser.add_argument("id", help="Task ID")
 
     # Default Tier
-    dt_parser = subparsers.add_parser("default_tier", help="Set default tier")
+    dt_parser = subparsers.add_parser("default_tier", help="Set default tier (deprecated)")
     dt_parser.add_argument("tier", help="Tier value")
 
-def handle_cli_command(args, controller: TodoController):
-    if args.command == "add":
-        task_id = controller.add_task(args.title, args.creator)
+
+def _format_set_error(service: TodoApplication, prop: str, err: str) -> str:
+    """Format a human-readable error for ``set`` command failures.
+
+    Args:
+        service: Application facade used for enum lookup.
+        prop: Property name requested by the user.
+        err: Error key returned by the use case.
+
+    Returns:
+        A formatted error message.
+    """
+    real_prop = PROP_ALIASES.get(str(prop).lower()) or str(prop).strip()
+
+    if err == "sakuraflow.msg.invalid_tier":
+        return f"Error: invalid value for tier. options: {', '.join([member.value for member in Tier])}"
+
+    if err == "sakuraflow.msg.invalid_priority":
+        return f"Error: invalid value for priority. options: {', '.join([member.value for member in Priority])}"
+
+    if err == "sakuraflow.msg.invalid_status":
+        return f"Error: invalid value for status. options: {', '.join([member.value for member in Status])}"
+
+    if err == "sakuraflow.msg.invalid_enum_value":
+        definition = service.get_field_definition(real_prop) if hasattr(service, "get_field_definition") else None
+        options = definition.get("enum_values", []) if isinstance(definition, dict) else []
+        if options:
+            option_text = ", ".join([str(item) for item in options])
+            return f"Error: invalid value for {real_prop}. options: {option_text}"
+        return f"Error: invalid value for {real_prop}."
+
+    return f"Error: {err}"
+
+
+def handle_cli_command(args, service: TodoApplication):
+    """Execute a parsed CLI command.
+
+    Args:
+        args: Parsed argparse namespace.
+        service: Application facade used to execute the command.
+    """
+    if args.command == "help":
+        print(render_cli(getattr(args, "topic", None)))
+
+    elif args.command == "add":
+        task_id = service.add_task(args.title, args.creator)
         print(f"Task created with ID: {task_id}")
 
     elif args.command == "list":
@@ -87,9 +172,15 @@ def handle_cli_command(args, controller: TodoController):
         if args.collab: criteria['collaborator'] = args.collab
         if args.label: criteria['label'] = args.label
 
+        custom_criteria, custom_err = _parse_field_filters(getattr(args, "field", []))
+        if custom_err:
+            print(f"Error: {custom_err}")
+            return
+        criteria.update(custom_criteria)
+
         # If criteria exists, use search_tasks
         if criteria:
-            tasks = controller.search_tasks(criteria)
+            tasks = service.search_tasks(criteria)
             # Apply archive/all filter on top of search results if needed?
             # search_tasks currently searches ALL tasks.
             # We should probably filter by status if --all is not present and status is not in criteria.
@@ -110,9 +201,9 @@ def handle_cli_command(args, controller: TodoController):
         else:
             # Fallback to original logic
             if args.archive:
-                 tasks = controller.get_archived_tasks()
+                tasks = service.get_archived_tasks()
             else:
-                 tasks = controller.get_tasks(include_done=args.all)
+                tasks = service.get_tasks(include_done=args.all)
         
         print(f"{'ID':<5} {'Status':<12} {'Title'}")
         print("-" * 40)
@@ -120,7 +211,7 @@ def handle_cli_command(args, controller: TodoController):
             print(f"{tid:<5} {task['status']:<12} {task['title']}")
 
     elif args.command == "info":
-        task = controller.get_task(args.id)
+        task = service.get_task(args.id)
         if task:
             print(f"ID: {args.id}")
             print(f"Title: {task['title']}")
@@ -140,58 +231,68 @@ def handle_cli_command(args, controller: TodoController):
             print(f"Task {args.id} not found.")
 
     elif args.command == "set":
-        success, val, err = controller.set_property(args.id, args.prop, args.value, args.editor)
+        success, val, err = service.set_property(args.id, args.prop, args.value, args.editor)
         if success:
             print(f"Set {args.prop} to {val}")
         else:
-            print(f"Error: {err}")
+            print(_format_set_error(service, args.prop, err))
 
     elif args.command == "append":
-        success, err = controller.append_list_property(args.id, args.list_prop, args.value, args.editor)
+        success, err, error_detail = service.append_list_property(args.id, args.list_prop, args.value, args.editor)
         if success:
             print(f"Appended {args.value} to {args.list_prop}")
         else:
-            print(f"Error: {err}")
+            if err == "sakuraflow.msg.self_dependency":
+                print(f"Error: self dependency: {args.id}->{args.value}({args.id}->{args.id})")
+            elif err == "sakuraflow.msg.circular_dependency" and error_detail:
+                print(f"Error: circular dependency: {error_detail}")
+            else:
+                print(f"Error: {err}")
 
     elif args.command == "remove":
-        success, err = controller.remove_list_property(args.id, args.list_prop, args.value, args.editor)
+        success, err = service.remove_list_property(args.id, args.list_prop, args.value, args.editor)
         if success:
             print(f"Removed {args.value} from {args.list_prop}")
         else:
             print(f"Error: {err}")
 
     elif args.command == "note":
-        if controller.add_note(args.id, args.content, args.author):
+        if service.add_note(args.id, args.content, args.author):
             print("Note added.")
         else:
             print("Failed to add note.")
 
     elif args.command == "complete":
-        if controller.update_status(args.id, Status.DONE, "CLI"):
+        if service.update_status(args.id, Status.DONE, "CLI"):
             print(f"Task {args.id} marked as completed.")
         else:
             print(f"Failed to update task {args.id}.")
 
     elif args.command == "pause":
-        if controller.update_status(args.id, Status.ON_HOLD, "CLI"):
+        if service.update_status(args.id, Status.ON_HOLD, "CLI"):
             print(f"Task {args.id} paused.")
         else:
             print(f"Failed to update task {args.id}.")
 
     elif args.command == "resume":
-        if controller.update_status(args.id, Status.IN_PROGRESS, "CLI"):
+        if service.update_status(args.id, Status.IN_PROGRESS, "CLI"):
             print(f"Task {args.id} resumed.")
         else:
             print(f"Failed to update task {args.id}.")
 
     elif args.command == "restore":
-        if controller.update_status(args.id, Status.IN_PROGRESS, "CLI"):
+        if service.update_status(args.id, Status.IN_PROGRESS, "CLI"):
             print(f"Task {args.id} restored.")
         else:
             print(f"Failed to update task {args.id}.")
             
     elif args.command == "default_tier":
-        if controller.set_default_tier(args.tier):
+        warnings.warn(
+            "CLI command 'default_tier' is deprecated; use field-definition defaults.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if service.set_default_tier(args.tier):
             print(f"Default tier set to {args.tier}")
         else:
             print("Invalid tier.")

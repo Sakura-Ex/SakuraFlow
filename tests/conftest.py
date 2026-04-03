@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from mcdreforged.api.all import PluginServerInterface
+
 
 @pytest.fixture
 def mock_server():
@@ -9,10 +11,9 @@ def mock_server():
     server.register_command = MagicMock()
     return server
 
+
 @pytest.fixture
-def mock_controller():
-    # 模拟 TodoController
-    # 这里不需要引入真实的 Controller 类，只需要一个有相应方法的 Mock 对象
-    # 这样可以解耦测试
-    controller = MagicMock()
-    return controller
+def mock_service():
+    # 模拟应用服务
+    service = MagicMock()
+    return service

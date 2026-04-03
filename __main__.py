@@ -1,8 +1,9 @@
 import argparse
 import os
 
+from sakura_flow.application import TodoApplication
 from sakura_flow.cli_entry import register_cli_commands, handle_cli_command
-from sakura_flow.controller import TodoController
+from sakura_flow.config_loader import apply_custom_field_definitions
 from sakura_flow.manager import TodoManager
 
 
@@ -31,13 +32,20 @@ def main():
              # If we really can't find it, assume we are in plugin folder as requested
              mcdr_root = os.path.abspath(os.path.join(cwd, "../.."))
 
-    data_path = os.path.join(mcdr_root, 'sf_tasks', 'tasks.json')
-    
-    # Initialize manager and controller
-    manager = TodoManager(data_path)
-    controller = TodoController(manager)
+    data_dir = os.path.join(mcdr_root, 'sf_tasks')
+    data_path = os.path.join(data_dir, 'tasks.db')
+    legacy_json_path = os.path.join(data_dir, 'tasks.json')
+    config_path = os.path.join(mcdr_root, 'config', 'sakura_flow', 'custom_fields.yml')
 
-    handle_cli_command(args, controller)
+    # Initialize backend service
+    manager = TodoManager(data_path, legacy_json_path=legacy_json_path)
+    if manager.startup_warning:
+        print(f"[WARN] {manager.startup_warning}")
+    for warning in apply_custom_field_definitions(manager, config_path):
+        print(f"[WARN] [sakura_flow config] {warning}")
+    service = TodoApplication(manager)
+
+    handle_cli_command(args, service)
 
 if __name__ == "__main__":
     main()
